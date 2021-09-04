@@ -10,6 +10,9 @@ class Player {
     public static void main(String args[]) {
         Scanner in = new Scanner(System.in);
         List<Chromosome> population = new ArrayList<>();
+        Game game;
+        GeneticAlgorithm ga = new GeneticAlgorithm();
+
         while (true) {
             Timer timer = new Timer();
             Actor player = new Actor(-1, in.nextInt(), in.nextInt());
@@ -25,84 +28,213 @@ class Player {
                 in.nextInt();
             }
             System.err.println("before eval:" + timer);
-            List<Chromosome> generated = findMove(timer, player, humans, zombies);
-            generated.sort(Comparator.reverseOrder());
-            Genome best = generated.get(0).gene.get(0);
-            System.out.println(best.x +" "+ best.y);
+            ga.evaluate(new Game(player, humans, zombies), timer);
             System.err.println("after eval:" + timer);
         }
+    }
 
-    }
-    private static List<Chromosome> mutate(Timer t,  Actor player, List<Actor> humans, List<Actor> zombies, List<Chromosome> population){
-        int counter = 0;
-        List<Chromosome> result = new ArrayList<>();
-        for (int i = 0; i < population.size() && t.getTime()<90; i++){
-            
+    static class GeneticAlgorithm {
+        public static final int TOURNAMENT_SIZE = 5;
+        private static double CROSSOVER_PERCENTAGE = 80.0;
+        private static double MUTATION_CHANCE = 2.0;
+        private final int PATH_LENGTH = 15;
+        private final double ELITISM_PERCENTAGE = 20.0;
+        private final int DESIRED_POPULATION_SIZE = 50;
+
+        private final long EVALUATE_TIME = 95;
+
+        private List<Chromosome> pop;
+
+        public GeneticAlgorithm() {
+            this.pop = new ArrayList<>();
+            topUpWithEmptyChromosome();
         }
-        return result;
-    }
-    private static List<Chromosome> findMove(Timer t, Actor player, List<Actor> humans, List<Actor> zombies) {
-        int counter = 0;
-        //Generate random
-        List<Chromosome> population = new ArrayList<>();
-        while (t.getTime() < 90 && counter<100000) {
-            Actor copyPlayer = new Actor(player);
-            List<Actor> copyHumans = humans.stream()
-                    .map(Actor::new)
-                    .collect(Collectors.toList());
-            List<Actor> copyZombies = humans.stream()
-                    .map(Actor::new)
-                    .collect(Collectors.toList());
-            Evaluator evaluator = new Evaluator(copyPlayer, copyHumans, copyZombies, 100);
-            Chromosome eval = evaluator.eval();
-            if(eval.humansAlive>0) {
-                population.add(eval);
-                System.out.println("find 1 solution");
+
+        public void evaluate(Game game, Timer t) {
+            int elitismIndex = (int) (pop.size() * (ELITISM_PERCENTAGE / 100));
+            if (pop.size() < DESIRED_POPULATION_SIZE) topUpWithEmptyChromosome();
+            List<Chromosome> elite = pop.subList(0, elitismIndex);
+            List<Chromosome> previousPopulation = pop.subList(elitismIndex, pop.size());
+            while (t.getTime() < EVALUATE_TIME) {
+                //Crossover
+                List<List<Gene>> crossoverGenes = crossoverPopulation(previousPopulation);
+                //Mutate
+                mutate(crossoverGenes);
+                //Fitness
+                previousPopulation = simulateGenes(game, crossoverGenes);
             }
-            counter++;
+            //Merge with elite
+            pop = new ArrayList<>(elite);
+            pop.addAll(previousPopulation);
+            //Sort
+            pop.sort(Comparator.reverseOrder());
+            //get best
+            Chromosome bestChromosome = pop.get(0);
+            //send message
+            Gene bestGene = bestChromosome.path.get(0);
+            int nextX = Math.max(0,
+                    (int) (game.player.x + bestGene.radius * Math.cos(bestGene.angle)));
+            int nextY = Math.max(0,
+                    (int) (game.player.y + bestGene.radius * Math.sin(bestGene.angle)));
+            System.out.println(nextX + " " + nextY);
+            //remove step
+            removeStep();
+            //save result
         }
-        System.err.println("evaluated:"+counter + " before:" + t.getTime());
-        return population;
+
+
+        private void removeStep() {
+            for (int i = pop.size() - 1; i >= 0; i--){
+                Chromosome c = pop.get(i);
+                c.path.remove(0);
+                if (c.path.isEmpty()) pop.remove(i);
+            }
+        }
+
+        private void topUpWithEmptyChromosome() {
+            if (pop.size() >= DESIRED_POPULATION_SIZE) return;
+            List<List<Gene>> randomGenes = getRandomGenes(DESIRED_POPULATION_SIZE - pop.size());
+            randomGenes.forEach(l -> pop.add(new Chromosome(l, 0, 0)));
+        }
+
+        private List<List<Gene>> getRandomGenes(int maxAmount) {
+            Random r = new Random();
+            List<List<Gene>> result = new ArrayList<>();
+            for (int j = 0; j < maxAmount; j++){
+                List<Gene> path = new ArrayList<>();
+                for (int i = 0; i < PATH_LENGTH; i++){
+                    double distanceWeight = r.nextDouble();
+                    int angle = r.nextInt(360);
+                    int distance = distanceWeight < 0.25 ? 0 :
+                            distanceWeight > 0.75 ? 1000 : (int) (1000 * distanceWeight);
+                    Gene nextGene = new Gene(distance, angle);
+                    path.add(nextGene);
+                }
+                result.add(path);
+            }
+            return result;
+        }
+
+        public List<Chromosome> simulateGenes(Game game, List<List<Gene>> path) {
+            List<Chromosome> result = new ArrayList<>();
+            for (List<Gene> genes: path){
+                GameState gs = new GameState(game, genes);
+                Chromosome chromosome = gs.evaluateGame();
+                result.add(chromosome);
+            }
+            return result;
+        }
+
+
+        public static void mutate(List<List<Gene>> population) {
+            Random r = new Random();
+            for (int i = 0; i < population.size(); i++){
+                if (r.nextDouble() < MUTATION_CHANCE / 100) {
+                    int size = population.get(i).size();
+                    List<Gene> mutatedGene = new ArrayList<>();
+                    for (int j = 0; j < size; j++){
+                        double distanceWeight = r.nextDouble();
+                        int angle = r.nextInt(360);
+                        int distance = distanceWeight < 0.25 ? 0 :
+                                distanceWeight > 0.75 ? 1000 : (int) (1000 * distanceWeight);
+                        Gene nextGene = new Gene(distance, angle);
+                        mutatedGene.add(nextGene);
+                    }
+                    population.set(i, mutatedGene);
+                }
+            }
+        }
+
+        public static List<List<Gene>> crossoverPopulation(List<Chromosome> population) {
+            List<List<Gene>> result = new ArrayList<>();
+            int maxAmount = (int) (population.size() * (CROSSOVER_PERCENTAGE / 100));
+            for (int i = 0; i < maxAmount; i++){
+                Chromosome p1 = selectTournament(population, TOURNAMENT_SIZE);
+                Chromosome p2 = selectTournament(population, TOURNAMENT_SIZE);
+                List<Gene> newGene = crossoverGene(p1.path, p2.path);
+                result.add(newGene);
+            }
+            return result;
+        }
+
+        public static List<Gene> crossoverGene(List<Gene> p1, List<Gene> p2) {
+            if (p1.size() > p2.size()) {
+                List<Gene> temp = p1;
+                p1 = p2;
+                p2 = temp;
+            }
+            Random r = new Random();
+            int crossoverIndex = r.nextInt(Math.min(p1.size(), p2.size()));
+            List<Gene> child = new ArrayList<>(p2.size());
+            for (int i = 0; i < p2.size(); i++){
+                child.add(i, i <= crossoverIndex ? p1.get(i) : p2.get(i));
+            }
+            return child;
+        }
+
+        public static Chromosome selectTournament(List<Chromosome> population, int tournamentSize) {
+            Random r = new Random();
+            Chromosome bestInTournament = null;
+            for (int j = 0; j < tournamentSize; j++){
+                int index = r.nextInt(population.size());
+                Chromosome chromosome = population.get(index);
+                if (bestInTournament == null ||
+                    bestInTournament.fitnessScore < chromosome.fitnessScore)
+                    bestInTournament = chromosome;
+            }
+            return bestInTournament;
+        }
     }
 
-    static class Evaluator {
+    static class Game {
         Actor player;
         List<Actor> humans;
         List<Actor> zombies;
-        int maxTurn;
-        List<Genome> genes = new ArrayList<>();
-        Random r = new Random();
-        int score = 0;
 
-        public Evaluator(Actor player, List<Actor> humans, List<Actor> zombies, int maxTurn) {
+        public Game(Actor player, List<Actor> humans, List<Actor> zombies) {
             this.player = player;
             this.humans = humans;
             this.zombies = zombies;
-            this.maxTurn = maxTurn;
+        }
+    }
+
+    static class GameState {
+        Actor player;
+        List<Actor> humans;
+        List<Actor> zombies;
+        int score = 0;
+        List<Gene> path;
+
+        public GameState(Game game, List<Gene> path) {
+            player = new Actor(game.player);
+            humans = new ArrayList<>();
+            game.humans.forEach(h -> humans.add(new Actor(h)));
+            zombies = new ArrayList<>();
+            game.zombies.forEach(h -> zombies.add(new Actor(h)));
+            this.path = path;
         }
 
-        public Chromosome eval() {
-            for (int i = 0; i < maxTurn; i++){
-                madeTurn();
-                if (zombies.isEmpty() || humans.isEmpty()) {
-                    break;
-                }
+        public Chromosome evaluateGame() {
+            for (Gene gene: path){
+                //1) Move Zombies
+                moveZombies();
+                //2) Move Player
+                movePlayer(gene);
+                //3) Player kills zombies
+                killZombies();
+                //4) Zombies eat humans
+                killHumans();
+                if (zombies.isEmpty() || humans.isEmpty()) break;
             }
-            return new Chromosome(genes, score, humans.size(),0);
+            return new Chromosome(path, score, humans.size());
         }
-        
-        private void madeTurn() {
-            int playerNextX = r.nextInt(16000);
-            int playerNextY = r.nextInt(9000);
-            genes.add(new Genome(playerNextX, playerNextY));
-            //1) Move Zombies
-            moveZombies();
-            //2) Move Player
-            player.moveToNext(playerNextX, playerNextY, 1000);
-            //3) Player kills zombies
-            killZombies();
-            //4) Zombies eat humans
-            killHumans();
+
+        private void movePlayer(Gene move) {
+            double vectorX = move.radius * Math.cos(move.angle);
+            double vectorY = move.radius * Math.sin(move.angle);
+            int nextX = Math.max(0, (int) (player.x + vectorX));
+            int nextY = Math.max(0, (int) (player.y + vectorY));
+            player.moveToNext(nextX, nextY, 1000);
         }
 
         private void killHumans() {
@@ -133,43 +265,37 @@ class Player {
         }
     }
 
-    static class Chromosome implements Comparable<Chromosome>{
-        List<Genome> gene;
+    static class Chromosome implements Comparable<Chromosome> {
+        List<Gene> path;
         int score;
         int humansAlive;
-        int canBeSaved;
+        int fitnessScore;
 
-        public Chromosome(List<Genome> gene, int score, int humansAlive, int canBeSaved) {
-            this.gene = gene;
+        public Chromosome(List<Gene> path, int score, int humansAlive) {
+            this.path = path;
             this.score = score;
             this.humansAlive = humansAlive;
-            this.canBeSaved = canBeSaved;
-        }
-
-        public Chromosome compare(Chromosome candidate) {
-            if(score != candidate.score) return score>candidate.score? this:candidate;
-            if(humansAlive!=candidate.humansAlive) return humansAlive>candidate.humansAlive? this:candidate;
-            if(canBeSaved!=candidate.canBeSaved) return canBeSaved>candidate.canBeSaved? this:candidate;
-            if(gene.size()!=candidate.gene.size()) return gene.size()<candidate.gene.size()? this:candidate;
-            return this;
+            fitnessScore = humansAlive == 0 ? -1 : score + 10 * (humansAlive * humansAlive);
         }
 
         @Override
         public int compareTo(Chromosome o) {
-            if(humansAlive!=o.humansAlive) return Integer.compare(humansAlive, o.humansAlive);
-            if(score != o.score) return Integer.compare(score, o.score);
-            if(gene.size()!=o.gene.size()) return Integer.compare(o.gene.size(),gene.size());
+            if (humansAlive != o.humansAlive) return Integer.compare(humansAlive, o.humansAlive);
+            if (score != o.score) return Integer.compare(score, o.score);
+            if (path.size() != o.path.size()) return Integer.compare(o.path.size(), path.size());
             return 0;
         }
     }
 
-    static class Genome {
-        int x;
-        int y;
+    static class Gene {
+        //0-1000
+        int radius;
+        //0-1000
+        int angle;
 
-        public Genome(int x, int y) {
-            this.x = x;
-            this.y = y;
+        public Gene(int radius, int angle) {
+            this.radius = radius;
+            this.angle = angle;
         }
     }
 
@@ -183,10 +309,11 @@ class Player {
             this.x = x;
             this.y = y;
         }
-        public Actor(Actor a){
+
+        public Actor(Actor a) {
             this.id = a.id;
-            this.x=a.x;
-            this.y=a.y;
+            this.x = a.x;
+            this.y = a.y;
         }
 
         public int getDistanceSqrt(Actor target) {
