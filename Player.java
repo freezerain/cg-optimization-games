@@ -12,7 +12,6 @@ class Player {
         List<Chromosome> population = new ArrayList<>();
         Game game;
         GeneticAlgorithm ga = new GeneticAlgorithm();
-
         while (true) {
             Timer timer = new Timer();
             Actor player = new Actor(-1, in.nextInt(), in.nextInt());
@@ -35,37 +34,51 @@ class Player {
 
     static class GeneticAlgorithm {
         public static final int TOURNAMENT_SIZE = 5;
-        private static double CROSSOVER_PERCENTAGE = 80.0;
+        private static final double ELITISM_PERCENTAGE = 20.0;
+        private static double CROSSOVER_PERCENTAGE = 100.0-ELITISM_PERCENTAGE;
         private static double MUTATION_CHANCE = 2.0;
-        private final int PATH_LENGTH = 15;
-        private final double ELITISM_PERCENTAGE = 20.0;
-        private final int DESIRED_POPULATION_SIZE = 50;
+        private static final int PATH_LENGTH = 50;
+        private static final int DESIRED_POPULATION_SIZE = 50;
 
-        private final long EVALUATE_TIME = 95;
+        private final long EVALUATE_TIME = 90;
 
-        private List<Chromosome> pop;
+        private List<Chromosome> pop = new ArrayList<>();
+        private final Random r = new Random();
 
         public GeneticAlgorithm() {
-            this.pop = new ArrayList<>();
-            topUpWithEmptyChromosome();
+            topUpWithEmptyChromosome(pop);
         }
 
         public void evaluate(Game game, Timer t) {
+            System.err.println("Population before top up:"+pop.size());
+            if (pop.size() < DESIRED_POPULATION_SIZE) topUpWithEmptyChromosome(pop);
+            System.err.println("Population after top up:"+pop.size());
             int elitismIndex = (int) (pop.size() * (ELITISM_PERCENTAGE / 100));
-            if (pop.size() < DESIRED_POPULATION_SIZE) topUpWithEmptyChromosome();
             List<Chromosome> elite = pop.subList(0, elitismIndex);
-            List<Chromosome> previousPopulation = pop.subList(elitismIndex, pop.size());
+            System.err.println("elitism index:" + elitismIndex);
+            List<List<Gene>> elitePath = new ArrayList<>();
+            for (Chromosome c: elite){
+                elitePath.add(c.path);
+            }
+            elite = simulateGenes(game, elitePath);
+            //List<Chromosome> previousPopulation = pop.subList(elitismIndex, pop.size());
+            //System.err.println("Elite size:" + elite.size() + " previous size:" + previousPopulation.size());
+            int counter = 0;
             while (t.getTime() < EVALUATE_TIME) {
                 //Crossover
-                List<List<Gene>> crossoverGenes = crossoverPopulation(previousPopulation);
+                List<List<Gene>> crossoverGenes = crossoverPopulation(pop);
                 //Mutate
                 mutate(crossoverGenes);
                 //Fitness
-                previousPopulation = simulateGenes(game, crossoverGenes);
+                pop = simulateGenes(game, crossoverGenes);
+                pop.addAll(elite);
+                counter++;
             }
+            System.err.println("Genetic evaluations: " + counter);
+            System.err.println("Crossover population:" + pop.size());
             //Merge with elite
-            pop = new ArrayList<>(elite);
-            pop.addAll(previousPopulation);
+            //pop.addAll(elite);
+            System.err.println("population size:" + pop.size());
             //Sort
             pop.sort(Comparator.reverseOrder());
             //get best
@@ -76,13 +89,18 @@ class Player {
                     (int) (game.player.x + bestGene.radius * Math.cos(bestGene.angle)));
             int nextY = Math.max(0,
                     (int) (game.player.y + bestGene.radius * Math.sin(bestGene.angle)));
+            System.err.println("Best fitness:"+bestChromosome.fitnessScore + " score:" + bestChromosome.score + " alive:" + bestChromosome.humansAlive);
+            removeStep();
+            if(bestChromosome.fitnessScore==-1){
+                Actor closestHuman = game.player.getClosest(game.humans);
+                nextX = closestHuman.x;
+                nextY = closestHuman.y;
+            }
             System.out.println(nextX + " " + nextY);
             //remove step
-            removeStep();
             //save result
         }
-
-
+        
         private void removeStep() {
             for (int i = pop.size() - 1; i >= 0; i--){
                 Chromosome c = pop.get(i);
@@ -91,22 +109,20 @@ class Player {
             }
         }
 
-        private void topUpWithEmptyChromosome() {
+        private void topUpWithEmptyChromosome(List<Chromosome> population) {
             if (pop.size() >= DESIRED_POPULATION_SIZE) return;
             List<List<Gene>> randomGenes = getRandomGenes(DESIRED_POPULATION_SIZE - pop.size());
-            randomGenes.forEach(l -> pop.add(new Chromosome(l, 0, 0)));
+            randomGenes.forEach(l -> population.add(new Chromosome(l, 0, 0)));
         }
 
         private List<List<Gene>> getRandomGenes(int maxAmount) {
-            Random r = new Random();
             List<List<Gene>> result = new ArrayList<>();
             for (int j = 0; j < maxAmount; j++){
                 List<Gene> path = new ArrayList<>();
                 for (int i = 0; i < PATH_LENGTH; i++){
                     double distanceWeight = r.nextDouble();
                     int angle = r.nextInt(360);
-                    int distance = distanceWeight < 0.25 ? 0 :
-                            distanceWeight > 0.75 ? 1000 : (int) (1000 * distanceWeight);
+                    int distance = distanceWeight > 0.50 ? 1000 : (int) (2000 * distanceWeight);
                     Gene nextGene = new Gene(distance, angle);
                     path.add(nextGene);
                 }
@@ -124,10 +140,8 @@ class Player {
             }
             return result;
         }
-
-
-        public static void mutate(List<List<Gene>> population) {
-            Random r = new Random();
+        
+        public void mutate(List<List<Gene>> population) {
             for (int i = 0; i < population.size(); i++){
                 if (r.nextDouble() < MUTATION_CHANCE / 100) {
                     int size = population.get(i).size();
@@ -145,9 +159,9 @@ class Player {
             }
         }
 
-        public static List<List<Gene>> crossoverPopulation(List<Chromosome> population) {
-            List<List<Gene>> result = new ArrayList<>();
+        public List<List<Gene>> crossoverPopulation(List<Chromosome> population) {
             int maxAmount = (int) (population.size() * (CROSSOVER_PERCENTAGE / 100));
+            List<List<Gene>> result = new ArrayList<>();
             for (int i = 0; i < maxAmount; i++){
                 Chromosome p1 = selectTournament(population, TOURNAMENT_SIZE);
                 Chromosome p2 = selectTournament(population, TOURNAMENT_SIZE);
@@ -157,23 +171,21 @@ class Player {
             return result;
         }
 
-        public static List<Gene> crossoverGene(List<Gene> p1, List<Gene> p2) {
+        public List<Gene> crossoverGene(List<Gene> p1, List<Gene> p2) {
             if (p1.size() > p2.size()) {
                 List<Gene> temp = p1;
                 p1 = p2;
                 p2 = temp;
             }
-            Random r = new Random();
             int crossoverIndex = r.nextInt(Math.min(p1.size(), p2.size()));
-            List<Gene> child = new ArrayList<>(p2.size());
+            List<Gene> child = new ArrayList<>();
             for (int i = 0; i < p2.size(); i++){
-                child.add(i, i <= crossoverIndex ? p1.get(i) : p2.get(i));
+                child.add( i <= crossoverIndex ? p1.get(i) : p2.get(i));
             }
             return child;
         }
 
-        public static Chromosome selectTournament(List<Chromosome> population, int tournamentSize) {
-            Random r = new Random();
+        public Chromosome selectTournament(List<Chromosome> population, int tournamentSize) {
             Chromosome bestInTournament = null;
             for (int j = 0; j < tournamentSize; j++){
                 int index = r.nextInt(population.size());
@@ -325,15 +337,21 @@ class Player {
         }
 
         public List<Actor> getInRange(List<Actor> actorList, int range) {
-            return actorList.stream()
-                    .filter(a -> this.getDistanceSqrt(a) <= (range * range))
-                    .collect(Collectors.toList());
+            List<Actor> result = new ArrayList<>();
+            range = range * range;
+            for (Actor a : actorList) {
+                if(this.getDistanceSqrt(a)<=range) result.add(a);
+            }
+            return result;
         }
 
         public Actor getClosest(List<Actor> actorList) {
-            return actorList.stream()
-                    .min(Comparator.comparingInt(this::getDistanceSqrt))
-                    .orElse(null);
+            Actor closest = null;
+            int distance = Integer.MAX_VALUE;
+            for (Actor a: actorList){
+                if(this.getDistanceSqrt(a)< distance) closest = a;
+            }
+            return closest;
         }
 
 
