@@ -1,4 +1,4 @@
-package src;
+package marsLander;
 
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
