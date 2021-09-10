@@ -1,14 +1,14 @@
 package simulacrum.marsLanderPuzzle;
 
-class MarsLander {
+public class MarsLander {
     private final static double MARS_GRAVITY = 3.711; // m/ s^2
-    double x;
-    double y;
-    double hSpeed;
-    double vSpeed;
-    int fuel;
-    int rotateAngle;
-    int power;
+    public double x;
+    public double y;
+    public double hSpeed;
+    public double vSpeed;
+    public int fuel;
+    public int rotateAngle;
+    public int power;
 
     public MarsLander(double x, double y, double hSpeed, double vSpeed, int fuel, int rotateAngle,
                      int power) {

@@ -17,6 +17,7 @@ import javafx.scene.text.Font;
 import javafx.scene.text.Text;
 import javafx.stage.Stage;
 
+import java.util.*;
 import java.util.concurrent.CountDownLatch;
 
 public class MarsLanderApp extends Application {
@@ -28,7 +29,7 @@ public class MarsLanderApp extends Application {
     int HALF_IMAGE_WIDTH = 33;
     int HALF_IMAGE_HEIGHT = 31;
     private Pane pane;
-    private Polyline[] previousPaths = new Polyline[0];
+    private List<Polyline> previousPaths = new ArrayList<>();
     private final SimpleIntegerProperty y = new SimpleIntegerProperty();
     private final SimpleIntegerProperty x = new SimpleIntegerProperty();
     private final SimpleIntegerProperty rot = new SimpleIntegerProperty();
@@ -98,24 +99,27 @@ public class MarsLanderApp extends Application {
         stage.show();
     }
 
-    public void updateObservable(int x, int y, int hSpeed, int vSpeed, int angle, int power, int fuel, double[][] paths) {
+    public void updateObservable(int x, int y, int hSpeed, int vSpeed, int angle, int power, int fuel, Map<double[], Double> paths) {
         this.y.set(x - HALF_IMAGE_WIDTH);
         this.x.set(y - HALF_IMAGE_HEIGHT);
         rot.set(-angle);
         coordText.set("coord x: " + x + " y: " + y);
         speedText.set("speed x: " + hSpeed + " y: " + vSpeed);
         controlText.set("angle: " + angle + " power: " + power + " fuel: " + fuel);
-
         buildPaths(paths);
     }
 
-    private void buildPaths(double[][] paths) {
-        Polyline[] newPath = new Polyline[paths.length];
-        for (int i = 0; i < paths.length; i++){
-            double[] path = paths[i];
+    private void buildPaths(Map<double[], Double> paths) {
+        Double maxScore = paths.entrySet()
+                .stream()
+                .max(Comparator.comparingDouble(Map.Entry::getValue))
+                .map(Map.Entry::getValue).orElse(1.0);
+        List<Polyline> newPath = new ArrayList<>();
+        for (Map.Entry<double[], Double> e : paths.entrySet()){
+            double[] path = e.getKey();
             Polyline polyline = new Polyline(path);
-            polyline.setStroke(Color.GREEN);
-            newPath[i] = polyline;
+            polyline.setStroke(Color.color(1.0-(e.getValue()/maxScore), e.getValue()/maxScore, 0));
+            newPath.add(polyline);
         }
         Platform.runLater(() -> {
             pane.getChildren().removeAll(previousPaths);
