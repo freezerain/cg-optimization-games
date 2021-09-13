@@ -2,10 +2,10 @@ package marsLander;
 
 import javafx.application.Application;
 import javafx.application.Platform;
-import javafx.beans.property.SimpleDoubleProperty;
 import javafx.beans.property.SimpleIntegerProperty;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.geometry.Insets;
+import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.image.Image;
@@ -17,30 +17,31 @@ import javafx.scene.text.Font;
 import javafx.scene.text.Text;
 import javafx.stage.Stage;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 
 public class MarsLanderApp extends Application {
     private static final CountDownLatch latch = new CountDownLatch(1);
     public static MarsLanderApp appReference = null;
-   
-    int WIDTH = 1750;
-    int HEIGHT = 750;
-    int HALF_IMAGE_WIDTH = 33;
-    int HALF_IMAGE_HEIGHT = 31;
-    private Pane pane;
-    private List<Polyline> previousPaths = new ArrayList<>();
     private final SimpleIntegerProperty y = new SimpleIntegerProperty();
     private final SimpleIntegerProperty x = new SimpleIntegerProperty();
     private final SimpleIntegerProperty rot = new SimpleIntegerProperty();
+    private final SimpleStringProperty simulationText = new SimpleStringProperty();
     private final SimpleStringProperty coordText = new SimpleStringProperty();
     private final SimpleStringProperty speedText = new SimpleStringProperty();
     private final SimpleStringProperty controlText = new SimpleStringProperty();
+    int WIDTH = 1750;
+    int HEIGHT = 750;
+    int IMAGE_WIDTH = 67;
+    int IMAGE_HEIGHT = 62;
+    private Pane pane;
+    private List<Polyline> previousPaths = new ArrayList<>();
     
-
     public MarsLanderApp() {
         appReference = this;
-        latch.countDown();
     }
 
     public static void main(String[] args) {
@@ -69,7 +70,11 @@ public class MarsLanderApp extends Application {
         Canvas canvas = new CanvasGridGenerator(WIDTH, HEIGHT, 10).generate(0.25,
                 Color.color(1, 1, 1, 0.01));
         pane.getChildren().add(canvas);
-        
+
+        Text text0 = new Text();
+        text0.setFill(Color.WHITE);
+        text0.setFont(Font.font(18.0));
+        text0.textProperty().bind(simulationText);
         Text text1 = new Text();
         text1.setFill(Color.WHITE);
         text1.setFont(Font.font(18.0));
@@ -82,11 +87,11 @@ public class MarsLanderApp extends Application {
         text3.setFill(Color.WHITE);
         text3.setFont(Font.font(18.0));
         text3.textProperty().bind(controlText);
-        VBox vbox = new VBox(text1, text2,text3);
+        VBox vbox = new VBox(text0, text1, text2, text3);
         vbox.setLayoutX(100);
         vbox.setLayoutY(100);
         pane.getChildren().add(vbox);
-        
+
         Image image = new Image(getClass().getResource("MarsLander1.png").toString());
         ImageView im = new ImageView(image);
         im.layoutXProperty().bind(y);
@@ -97,12 +102,15 @@ public class MarsLanderApp extends Application {
         stage.setHeight(HEIGHT + 20);
         stage.setScene(new Scene(pane));
         stage.show();
+        latch.countDown();
     }
 
-    public void updateObservable(int x, int y, int hSpeed, int vSpeed, int angle, int power, int fuel, Map<double[], Double> paths) {
-        this.y.set(x - HALF_IMAGE_WIDTH);
-        this.x.set(y - HALF_IMAGE_HEIGHT);
+    public void updateObservable(int gen, int converged,int x, int y, int hSpeed, int vSpeed, int angle, int power,
+                                 int fuel, Map<double[], Double> paths) {
+        this.y.set(x - IMAGE_WIDTH/2);
+        this.x.set(y - IMAGE_HEIGHT);
         rot.set(-angle);
+        simulationText.set("generation: " + gen + " converged: " + converged);
         coordText.set("coord x: " + x + " y: " + y);
         speedText.set("speed x: " + hSpeed + " y: " + vSpeed);
         controlText.set("angle: " + angle + " power: " + power + " fuel: " + fuel);
@@ -113,14 +121,18 @@ public class MarsLanderApp extends Application {
         Double maxScore = paths.entrySet()
                 .stream()
                 .max(Comparator.comparingDouble(Map.Entry::getValue))
-                .map(Map.Entry::getValue).orElse(1.0);
+                .map(Map.Entry::getValue)
+                .orElse(1.0);
         List<Polyline> newPath = new ArrayList<>();
         for (Map.Entry<double[], Double> e : paths.entrySet()){
             double[] path = e.getKey();
             Polyline polyline = new Polyline(path);
-            polyline.setStroke(Color.color(1.0-(e.getValue()/maxScore), e.getValue()/maxScore, 0));
+            if(e.getValue()>10000000.0) polyline.setStroke(Color.WHITE);
+            else if(e.getValue()<=0.0) polyline.setStroke(Color.DARKRED);
+            else polyline.setStroke(Color.color(0.0, e.getValue() / maxScore ,0.0));
             newPath.add(polyline);
         }
+        System.out.println("polyline size:" + newPath.size());
         Platform.runLater(() -> {
             pane.getChildren().removeAll(previousPaths);
             pane.getChildren().addAll(newPath);
@@ -132,6 +144,6 @@ public class MarsLanderApp extends Application {
         Polyline land = new Polyline(landscape);
         land.setStrokeWidth(1);
         land.setStroke(Color.DARKRED);
-        pane.getChildren().add(land);
+        Platform.runLater(() -> pane.getChildren().add(land));
     }
 }
