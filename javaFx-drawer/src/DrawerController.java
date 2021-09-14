@@ -22,7 +22,7 @@ public class DrawerController {
             for (int i = 0; i < k.length; i++){
                 k[i] = (i % 2 == 0 ? k[i] : 3000.0 - k[i]) / 4.0;
             }
-            if(e.getValue()>=10000.0) counter++;
+            if(e.getValue()>=10.0) counter++;
             newPaths.put(k, e.getValue());
         }
 

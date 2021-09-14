@@ -12,38 +12,69 @@ public class MarsLanderSim {
     private final static int MARS_HEIGHT = 3000;
     private final static int VERTICAL_SPEED_LIMIT = 40; // m/s
     private final static int HORIZONTAL_SPEED_LIMIT = 20; // m/s
-    private final static File TEST_FILE = new File(MarsLanderSim.class.getResource("simulacrum" +
-                                                                                   "/marsLanderPuzzle/test1.txt").getPath());
+    private final static File TEST_FILE = new File(
+            MarsLanderSim.class.getResource("simulacrum" + "/marsLanderPuzzle/test1.txt")
+                    .getPath());
+    private static final int TEST_NUMBER = 1;
     private static MarsLander ms;
     private static DrawerController dc;
-    private static final int TEST_NUMBER = 1;
-    
 
     public static void main(String[] args) throws FileNotFoundException, InterruptedException {
         Scanner sc = new Scanner(TEST_FILE);
-        for (int i = 0; i < TEST_NUMBER*2; i++){
+        for (int i = 0; i < TEST_NUMBER * 2; i++){
             sc.nextLine();
         }
         double[] landscape = Arrays.stream(sc.nextLine().split(" "))
                 .mapToDouble(Double::parseDouble)
                 .toArray();
         int[] s1 = Arrays.stream(sc.nextLine().split(" ")).mapToInt(Integer::parseInt).toArray();
-        Player.GameState gs = new Player.GameState(s1[0],s1[1],s1[2],s1[3],s1[4],s1[5],s1[6]);
+        Player.GameState gs = new Player.GameState(s1[0], s1[1], s1[2], s1[3], s1[4], s1[5], s1[6]);
         dc = new DrawerController();
         Player player = new Player();
         player.simulationInit(landscape);
         dc.startApp(landscape);
         sleep(3000);
-        evaluateStatic(gs,player);
+        //evaluateStatic(gs,player);
         //evaluateAndSimulate(gs, player);
+        evaluateAndTest(gs, player);
         System.out.println("Algho completed!");
+    }
+
+    private static void evaluateAndTest(Player.GameState gs, Player player) throws InterruptedException {
+        int counter = 0;
+
+        int angle = -1;
+        int power = +1;
+        
+        while (!gs.isLanded) {
+            Player.GameState testState = new Player.GameState(gs);
+            List<Player.GameState> history = new ArrayList<>();
+            while (!testState.isLanded) {
+                testState.simulate(angle, power);
+                history.add(new Player.GameState(testState));
+            }
+            HashMap<double[], Double> map = new HashMap<>();
+            List<Double> newPath = new ArrayList<>();
+            for (int i1 = 0; i1 < history.size(); i1++){
+                Player.GameState step = history.get(i1);
+                newPath.add(step.x);
+                newPath.add(step.y);
+            }
+            double[] pathCoord = newPath.stream().mapToDouble(d -> d).toArray();
+            map.put(pathCoord, new Player.Individual(new ArrayList<>(), history).fitnessScore);
+            
+            gs.simulate(angle, power);
+            dc.updateCoord(counter++, gs.x, gs.y, gs.hSpeed, gs.vSpeed, gs.angle, gs.power, gs.fuel,
+                    map);
+            sleep(1000);
+        }
     }
 
     private static void evaluateAndSimulate(Player.GameState gs, Player player) throws InterruptedException {
         int counter = 0;
-        while(!gs.isLanded){
+        while (!gs.isLanded) {
             List<Player.Individual> indList = player.simulationStep(gs);
-            if(indList.isEmpty()) {
+            if (indList.isEmpty()){
                 System.out.println("population is empty");
                 break;
             }
@@ -61,17 +92,18 @@ public class MarsLanderSim {
                 double[] pathCoord = newPath.stream().mapToDouble(d -> d).toArray();
                 map.put(pathCoord, ind.fitnessScore);
             }
-            
-            dc.updateCoord(counter++, gs.x, gs.y, gs.hSpeed, gs.vSpeed, gs.angle, gs.power, gs.fuel, map);
+
+            dc.updateCoord(counter++, gs.x, gs.y, gs.hSpeed, gs.vSpeed, gs.angle, gs.power, gs.fuel,
+                    map);
             sleep(1000);
         }
     }
 
     private static void evaluateStatic(Player.GameState gs, Player player) throws InterruptedException {
         int counter = 0;
-        while(true){
+        while (true) {
             List<Player.Individual> indList = player.simulationStep(gs);
-            if(indList.isEmpty()) {
+            if (indList.isEmpty()){
                 System.out.println("population is empty");
                 break;
             }
@@ -89,8 +121,9 @@ public class MarsLanderSim {
                 map.put(pathCoord, ind.fitnessScore);
             }
 
-            dc.updateCoord(counter++, gs.x, gs.y, gs.hSpeed, gs.vSpeed, gs.angle, gs.power, gs.fuel, map);
-            sleep(300);
+            dc.updateCoord(counter++, gs.x, gs.y, gs.hSpeed, gs.vSpeed, gs.angle, gs.power, gs.fuel,
+                    map);
+            sleep(10);
         }
     }
 }
