@@ -16,7 +16,7 @@ public class MarsLanderSim {
                                                                                    "/marsLanderPuzzle/test1.txt").getPath());
     private static MarsLander ms;
     private static DrawerController dc;
-    private static final int TEST_NUMBER = 3;
+    private static final int TEST_NUMBER = 1;
     
 
     public static void main(String[] args) throws FileNotFoundException, InterruptedException {
@@ -90,7 +90,7 @@ public class MarsLanderSim {
             }
 
             dc.updateCoord(counter++, gs.x, gs.y, gs.hSpeed, gs.vSpeed, gs.angle, gs.power, gs.fuel, map);
-            sleep(1000);
+            sleep(300);
         }
     }
 }

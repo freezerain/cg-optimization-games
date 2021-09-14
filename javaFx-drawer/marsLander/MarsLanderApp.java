@@ -120,6 +120,7 @@ public class MarsLanderApp extends Application {
     private void buildPaths(Map<double[], Double> paths) {
         Double maxScore = paths.entrySet()
                 .stream()
+                .filter(e->e.getValue()<10000.0)
                 .max(Comparator.comparingDouble(Map.Entry::getValue))
                 .map(Map.Entry::getValue)
                 .orElse(1.0);
@@ -127,7 +128,7 @@ public class MarsLanderApp extends Application {
         for (Map.Entry<double[], Double> e : paths.entrySet()){
             double[] path = e.getKey();
             Polyline polyline = new Polyline(path);
-            if(e.getValue()>10000000.0) polyline.setStroke(Color.WHITE);
+            if(e.getValue()>=10000.0) polyline.setStroke(Color.WHITE);
             else if(e.getValue()<=0.0) polyline.setStroke(Color.DARKRED);
             else polyline.setStroke(Color.color(0.0, e.getValue() / maxScore ,0.0));
             newPath.add(polyline);
