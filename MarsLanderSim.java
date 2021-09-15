@@ -1,9 +1,12 @@
+import marsLander.Lander;
+import marsLander.LanderPath;
 import simulacrum.marsLanderPuzzle.MarsLander;
 import src.DrawerController;
 
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.util.*;
+import java.util.stream.Collectors;
 
 import static java.lang.Thread.sleep;
 
@@ -34,18 +37,17 @@ public class MarsLanderSim {
         player.simulationInit(landscape);
         dc.startApp(landscape);
         sleep(3000);
-        //evaluateStatic(gs,player);
-        //evaluateAndSimulate(gs, player);
-        evaluateAndTest(gs, player);
+        //evaluateStatic(gs, player);
+        evaluateAndSimulate(gs, player);
+        //evaluateAndTest(gs, player);
         System.out.println("Algho completed!");
     }
 
-    private static void evaluateAndTest(Player.GameState gs, Player player) throws InterruptedException {
+  /*  private static void evaluateAndTest(Player.GameState gs, Player player) throws InterruptedException {
         int counter = 0;
-
         int angle = -1;
         int power = +1;
-        
+
         while (!gs.isLanded) {
             Player.GameState testState = new Player.GameState(gs);
             List<Player.GameState> history = new ArrayList<>();
@@ -62,13 +64,13 @@ public class MarsLanderSim {
             }
             double[] pathCoord = newPath.stream().mapToDouble(d -> d).toArray();
             map.put(pathCoord, new Player.Individual(new ArrayList<>(), history).fitnessScore);
-            
+
             gs.simulate(angle, power);
             dc.updateCoord(counter++, gs.x, gs.y, gs.hSpeed, gs.vSpeed, gs.angle, gs.power, gs.fuel,
                     map);
             sleep(1000);
         }
-    }
+    }*/
 
     private static void evaluateAndSimulate(Player.GameState gs, Player player) throws InterruptedException {
         int counter = 0;
@@ -79,23 +81,15 @@ public class MarsLanderSim {
                 break;
             }
             gs = indList.get(0).gameStateList.get(0);
-            HashMap<double[], Double> map = new HashMap<>();
-            for (int i = 0; i < indList.size(); i++){
-                Player.Individual ind = indList.get(i);
-                List<Player.GameState> gameState = ind.gameStateList;
-                List<Double> newPath = new ArrayList<>();
-                for (int i1 = 0; i1 < gameState.size(); i1++){
-                    Player.GameState step = gameState.get(i1);
-                    newPath.add(step.x);
-                    newPath.add(step.y);
-                }
-                double[] pathCoord = newPath.stream().mapToDouble(d -> d).toArray();
-                map.put(pathCoord, ind.fitnessScore);
-            }
 
-            dc.updateCoord(counter++, gs.x, gs.y, gs.hSpeed, gs.vSpeed, gs.angle, gs.power, gs.fuel,
-                    map);
-            sleep(1000);
+            List<LanderPath> parsed = indList.stream()
+                    .map(l -> new LanderPath(l.gameStateList.stream()
+                            .map(s -> new Lander(s.x, s.y, s.hSpeed, s.vSpeed, s.fuel, s.angle,
+                                    s.power, s.isLanded, s.isSafeLanded))
+                            .collect(Collectors.toList()), l.fitnessScore))
+                    .collect(Collectors.toList());
+            dc.updateCoord(counter++, parsed);
+            sleep(10);
         }
     }
 
@@ -107,23 +101,14 @@ public class MarsLanderSim {
                 System.out.println("population is empty");
                 break;
             }
-            HashMap<double[], Double> map = new HashMap<>();
-            for (int i = 0; i < indList.size(); i++){
-                Player.Individual ind = indList.get(i);
-                List<Player.GameState> gameState = ind.gameStateList;
-                List<Double> newPath = new ArrayList<>();
-                for (int i1 = 0; i1 < gameState.size(); i1++){
-                    Player.GameState step = gameState.get(i1);
-                    newPath.add(step.x);
-                    newPath.add(step.y);
-                }
-                double[] pathCoord = newPath.stream().mapToDouble(d -> d).toArray();
-                map.put(pathCoord, ind.fitnessScore);
-            }
-
-            dc.updateCoord(counter++, gs.x, gs.y, gs.hSpeed, gs.vSpeed, gs.angle, gs.power, gs.fuel,
-                    map);
-            sleep(10);
+            List<LanderPath> parsed = indList.stream()
+                    .map(l -> new LanderPath(l.gameStateList.stream()
+                            .map(s -> new Lander(s.x, s.y, s.hSpeed, s.vSpeed, s.fuel, s.angle,
+                                    s.power, s.isLanded, s.isSafeLanded))
+                            .collect(Collectors.toList()), l.fitnessScore))
+                    .collect(Collectors.toList());
+            dc.updateCoord(counter++, parsed);
+            sleep(100);
         }
     }
 }

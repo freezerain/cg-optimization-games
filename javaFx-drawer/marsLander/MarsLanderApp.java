@@ -18,10 +18,9 @@ import javafx.scene.text.Text;
 import javafx.stage.Stage;
 
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.stream.DoubleStream;
 
 public class MarsLanderApp extends Application {
     private static final CountDownLatch latch = new CountDownLatch(1);
@@ -38,8 +37,8 @@ public class MarsLanderApp extends Application {
     int IMAGE_WIDTH = 67;
     int IMAGE_HEIGHT = 62;
     private Pane pane;
-    private List<Polyline> previousPaths = new ArrayList<>();
-    
+    private List<Node> previousPaths = new ArrayList<>();
+
     public MarsLanderApp() {
         appReference = this;
     }
@@ -105,32 +104,55 @@ public class MarsLanderApp extends Application {
         latch.countDown();
     }
 
-    public void updateObservable(int gen, int converged,int x, int y, int hSpeed, int vSpeed, int angle, int power,
-                                 int fuel, Map<double[], Double> paths) {
-        this.y.set(x - IMAGE_WIDTH/2);
-        this.x.set(y - IMAGE_HEIGHT);
-        rot.set(-angle);
-        simulationText.set("generation: " + gen + " converged: " + converged);
-        coordText.set("coord x: " + x + " y: " + y);
-        speedText.set("speed x: " + hSpeed + " y: " + vSpeed);
-        controlText.set("angle: " + angle + " power: " + power + " fuel: " + fuel);
+    public void updateObservable(int gen, List<LanderPath> paths) {
+        Lander lastState = paths.get(0).firstState;
+        this.y.set(((int) (Math.round(lastState.x / 4.0))) - IMAGE_WIDTH / 2);
+        this.x.set(((int) (Math.round(750 - lastState.y / 4.0))) - IMAGE_HEIGHT);
+        rot.set(-lastState.angle);
+        long safeLandedCount = paths.stream().filter(p -> p.isSafeLanded).count();
+        simulationText.set("generation: " + gen + " converged: " + safeLandedCount);
+        coordText.set("coord x: " + Math.round(lastState.x / 4.0) + " y: " +
+                      Math.round(lastState.y / 4.0));
+        speedText.set("speed x: " + ((int) Math.round(lastState.hSpeed)) + " y: " +
+                      ((int) Math.round(lastState.vSpeed)));
+        controlText.set("angle: " + lastState.angle + " power: " + lastState.power + " fuel: " +
+                        lastState.fuel);
         buildPaths(paths);
     }
 
-    private void buildPaths(Map<double[], Double> paths) {
-        Double maxScore = paths.entrySet()
-                .stream()
-                .filter(e->e.getValue()<10.0)
-                .max(Comparator.comparingDouble(Map.Entry::getValue))
-                .map(Map.Entry::getValue)
+    private void buildPaths(List<LanderPath> landerPath) {
+        double maxScore = landerPath.stream()
+                .filter(l -> !l.isSafeLanded)
+                .mapToDouble(l -> l.score)
+                .max()
                 .orElse(1.0);
-        List<Polyline> newPath = new ArrayList<>();
-        for (Map.Entry<double[], Double> e : paths.entrySet()){
-            double[] path = e.getKey();
+        List<Node> newPath = new ArrayList<>();
+        for (LanderPath lp : landerPath){
+            double[] path = lp.landerList.stream()
+                    .flatMapToDouble(l -> DoubleStream.of(l.x / 4.0, 750.0 - l.y / 4.0))
+                    .toArray();
             Polyline polyline = new Polyline(path);
-            if(e.getValue()>=10.0) polyline.setStroke(Color.WHITE);
-            else if(e.getValue()<=0.0) polyline.setStroke(Color.DARKRED);
-            else polyline.setStroke(Color.color(0.0, e.getValue() / maxScore ,0.0));
+            if (lp.isSafeLanded) polyline.setStroke(Color.WHITE);
+            else if (!lp.isLanded) polyline.setStroke(Color.DARKRED);
+            else if (lp.score < 0) polyline.setStroke(Color.DIMGREY);
+            else polyline.setStroke(Color.color(0.0, lp.score / maxScore, 0.0));
+            /*for (Lander lander : lp.landerList){
+                Circle c = new Circle();
+                c.setRadius(5);
+                c.setFill(Color.color(0.35,0.35,0.35));
+                c.setLayoutX(lander.x / 4.0);
+                c.setLayoutY(750.0 - lander.y / 4.0);
+                String tp = "x: " + lander.x + " y: " + lander.y + "\n" +
+                            "hS: " + lander.hSpeed + " vS: " + lander.vSpeed + "\n" +
+                            "angle: " + lander.angle + " power: " + lander.power + " fuel: " + 
+                            lander.fuel + "\n" + "isLanded: " + lander.isLanded  + "isSafe: " + 
+                            lander.isSafeLanded;
+                 Tooltip tooltip = new Tooltip(tp);
+                 tooltip.setShowDelay(Duration.millis(10));
+                 tooltip.setShowDuration(Duration.seconds(30));
+                Tooltip.install(c, tooltip);
+                newPath.add(c);
+            }*/
             newPath.add(polyline);
         }
         System.out.println("polyline size:" + newPath.size());
