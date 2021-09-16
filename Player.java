@@ -5,10 +5,11 @@ import java.util.*;
 class Player {
     private final static int MARS_WIDTH = 7000;
     private final static int MARS_HEIGHT = 3000;
-    private static final GeneticAlgorithm GE = new GeneticAlgorithm();
+    public static GeneticAlgorithm GE = new GeneticAlgorithm();
     private static double[] landscape;
     private static double safeAreaBegin = -1;
     private static double safeAreaEnd = -1;
+    private static int STARTING_FUEL = 3000;
 
     public static void main(String args[]) {
         Scanner in = new Scanner(System.in);
@@ -38,19 +39,20 @@ class Player {
             long t = System.currentTimeMillis();
             GameState gameState = new GameState(in.nextInt(), in.nextInt(), in.nextInt(),
                     in.nextInt(), in.nextInt(), in.nextInt(), in.nextInt());
+            if (STARTING_FUEL == 3000) STARTING_FUEL = gameState.fuel;
             /*System.err.println(((int) gameState.x) + " " + ((int) gameState.y) + " " +
                                ((int) gameState.hSpeed) + " " + ((int) gameState.vSpeed) + " " +
                                gameState.fuel + " " + gameState.angle + " " + gameState.power);*/
-            List<Individual> evaluate = GE.evaluate(gameState, t);
-            if(!evaluate.isEmpty()) {
+            List<Individual> evaluate = GE.evaluate(gameState, t, new int[1]);
+            if (!evaluate.isEmpty()){
                 Individual individual = evaluate.get(0);
                 GameState nextGS = individual.gameStateList.get(0);
                 System.out.println((nextGS.angle) + " " + (nextGS.power));
-            }else {
+            } else {
                 System.out.println(0 + " " + 0);
             }
             //Gene gene = individual.path.get(0);
-           // System.out.println(-50 + " " + 1);
+            // System.out.println(-50 + " " + 1);
         }
     }
 
@@ -77,64 +79,56 @@ class Player {
         }
     }
 
-    List<Individual> simulationStep(GameState gs) {
-        return GE.evaluate(gs, System.currentTimeMillis());
-    }
-
     static class GeneticAlgorithm {
-        public static final int TOURNAMENT_SIZE = 5;
-        private static final double ELITISM_PERCENTAGE = 10.0;
-        private static final int INDIVIDUAL_LENGTH = 200;
-        private static final int DESIRED_POPULATION_SIZE = 100;
-        private static final double CROSSOVER_PERCENTAGE = 70.0;
-        private static final double MUTATION_CHANCE = 2.0;
-        private final long EVALUATE_TIME = 95;
+        public static boolean IS_TOURNAMENT_SELECT = false;
+        public static boolean IS_POINT_CROSSOVER = false;
+        public static boolean RANDOM_CROSSOVER_ON_DUPLICATE = true;
+        public static boolean REMOVE_DUPLICATES = true;
+        public static boolean REMOVE_STEP = false;
+        public static int TOURNAMENT_SIZE = 5;
+        public static double ELITISM_PERCENTAGE = 0.2;
+        public static int INDIVIDUAL_LENGTH = 200;
+        public static int DESIRED_POPULATION_SIZE = 200;
+        public static double CROSSOVER_PERCENTAGE = 0.6;
+        public static double MUTATION_CHANCE = 0.02;
+        public static double[] GENE_WEIGHTS = new double[]{0.3, 0.25, 0.25, 0.2, 1};
         private final Random r = new Random();
+        public long EVALUATE_TIME = 100;
         private List<Individual> pop = new ArrayList<>();
 
-        public List<Individual> evaluate(GameState game, long t) {
+
+        public List<Individual> evaluate(GameState game, long t, int[] counterArr) {
             if (pop.size() < DESIRED_POPULATION_SIZE) pop.addAll(
                     simulateGenes(game, getRandomGenes(DESIRED_POPULATION_SIZE - pop.size())));
-            int elitismIndex = (int) (pop.size() * (ELITISM_PERCENTAGE / 100));
-            List<List<Gene>> elitePath = new ArrayList<>();
-            for (int i = 0; i < elitismIndex; i++)
-                 elitePath.add(pop.get(i).path);
-            List<Individual> elite = simulateGenes(game, elitePath);
-            
             int counter = 0;
             while (System.currentTimeMillis() - t < EVALUATE_TIME) {
-                elitePath = new ArrayList<>();
-                elitismIndex = (int) (pop.size() * (ELITISM_PERCENTAGE / 100));
+                List<List<Gene>> elite = new ArrayList<>();
+                int elitismIndex = (int) (pop.size() * ELITISM_PERCENTAGE);
                 for (int i = 0; i < elitismIndex; i++)
-                     elitePath.add(pop.get(i).path);
-                List<List<Gene>> crossoverGenes = crossoverPopulation(pop);
-                int newPopSize = crossoverGenes.size() + elite.size();
-                
-                crossoverGenes.addAll(elitePath);
-                mutate(crossoverGenes);
-                if (newPopSize > DESIRED_POPULATION_SIZE) crossoverGenes = crossoverGenes.subList(0,
+                     elite.add(pop.get(i).path);
+                List<List<Gene>> newPop = crossover(pop);
+                mutate(newPop);
+                elite.addAll(newPop);
+                newPop = elite;
+                if (newPop.size() > DESIRED_POPULATION_SIZE) newPop = newPop.subList(0,
                         DESIRED_POPULATION_SIZE);
-                else
-                if (newPopSize < DESIRED_POPULATION_SIZE) crossoverGenes.addAll(
-                        getRandomGenes(DESIRED_POPULATION_SIZE - newPopSize));
-                pop = simulateGenes(game, crossoverGenes);
-                pop = new ArrayList<>(new HashSet<>(pop));
+                else if (newPop.size() < DESIRED_POPULATION_SIZE) newPop.addAll(
+                        getRandomGenes(DESIRED_POPULATION_SIZE - newPop.size()));
+                pop = simulateGenes(game, newPop);
+                if (REMOVE_DUPLICATES) pop = new ArrayList<>(new HashSet<>(pop));
                 pop.sort(Comparator.comparingDouble((Individual i) -> i.fitnessScore).reversed());
-                //if(pop.size()>DESIRED_POPULATION_SIZE - elitismIndex) pop = pop.subList(0, DESIRED_POPULATION_SIZE-elitismIndex); 
                 counter++;
             }
+            counterArr[0] += counter;
 
-
-           // pop.addAll(elite);
-            System.err.println("Genetic evaluations: " + counter);
-          //  pop.sort(Comparator.comparingDouble((Individual i) -> i.fitnessScore).reversed());
-            System.err.println(pop.get(0).fitnessScore);
-            System.err.println(pop.get(0).gameStateList.get(pop.get(0).gameStateList.size() - 1));
-            pop.get(0).getFitness();
-            removeStep();
+            //System.err.println("Genetic evaluations: " + counter);
+            //System.err.println(pop.get(0).fitnessScore);
+           // System.err.println(pop.get(0).gameStateList.get(pop.get(0).gameStateList.size() - 1));
+            if(REMOVE_STEP) removeStep();
             return pop;
         }
 
+        //Rework remove step
         private void removeStep() {
             for (int i = pop.size() - 1; i >= 0; i--){
                 Individual c = pop.get(i);
@@ -177,63 +171,86 @@ class Player {
         }
 
         public void mutate(List<List<Gene>> population) {
-            for (int i = 0; i < population.size(); i++){
-                if (r.nextDouble() < MUTATION_CHANCE / 100){
-                    int size = population.get(i).size();
-                    int mutatedGeneIndex = r.nextInt(size);
-                    population.get(i).set(mutatedGeneIndex, new Gene());
-                }
-            }
+            for (List<Gene> genes : population)
+                for (int j = 0; j < genes.size(); j++)
+                    if (r.nextDouble() < MUTATION_CHANCE) genes.set(j, new Gene());
         }
 
-        public List<List<Gene>> crossoverPopulation(List<Individual> population) {
+        public List<List<Gene>> crossover(List<Individual> population) {
             List<List<Gene>> result = new ArrayList<>();
-            while (result.size() < DESIRED_POPULATION_SIZE * (CROSSOVER_PERCENTAGE / 100.0)) {
-                Individual p1 = selectTournament(population);
-                Individual p2 = null;
-                do {
-                    p2 = selectTournament(population);
-                } while (p1 == p2);
-
-                List<Gene> newGene = crossoverGene(p1.path, p2.path);
-                result.add(newGene);
-
-                //Continuous Genetic Algorithm
-           /*     List<Gene> child1 = new ArrayList<>();
-                List<Gene> child2 = new ArrayList<>();
-                double crossoverPoint = r.nextDouble();
-                double crossoverRest = 1.0 - crossoverPoint;
-                for (int j = 0; j < p1.path.size() && j < p2.path.size(); j++){
-                    Gene parent1 = p1.path.get(j);
-                    Gene parent2 = p2.path.get(j);
-                    double angle1 = crossoverPoint * (parent1.angle + 15) +
-                                    crossoverRest * (parent2.angle + 15);
-                    double angle2 = crossoverRest * (parent1.angle + 15) +
-                                    crossoverPoint * (parent2.angle + 15);
-                    double power1 = crossoverPoint * parent1.power + crossoverRest * parent2.power;
-                    double power2 = crossoverRest * parent1.power + crossoverPoint * parent2.power;
-                    child1.add(new Gene((int) Math.round(angle1 - 15), (int) Math.round(power1)));
-                    child2.add(new Gene((int) Math.round(angle2 - 15), (int) Math.round(power2)));
+            while (result.size() < DESIRED_POPULATION_SIZE * CROSSOVER_PERCENTAGE) {
+                Individual ind1 = IS_TOURNAMENT_SELECT ? selectTournament(population) :
+                        selectWheel(population);
+                Individual ind2 = IS_TOURNAMENT_SELECT ? selectTournament(population) :
+                        selectWheel(population);
+                List<Gene> p1 = ind1.path;
+                List<Gene> p2 = ind2.path;
+                if (RANDOM_CROSSOVER_ON_DUPLICATE && p1 == p2){
+                    p2 = new ArrayList<>();
+                    for (int i = 0; i < p1.size(); i++)
+                         p2.add(new Gene());
+                } else if (p1 == p2){
+                    do {
+                        ind2 = selectTournament(population);
+                    } while (p1 == p2);
+                    p2 = ind2.path;
                 }
-                result.add(child1);
-                result.add(child2);*/
-
+                if (IS_POINT_CROSSOVER) crossoverOnPoint(result, p1, p2);
+                else crossoverContinuous(result, p1, p2);
             }
             return result;
         }
 
-        public List<Gene> crossoverGene(List<Gene> p1, List<Gene> p2) {
-            if (p1.size() > p2.size()){
-                List<Gene> temp = p1;
-                p1 = p2;
-                p2 = temp;
+        public void crossoverContinuous(List<List<Gene>> childList, List<Gene> p1, List<Gene> p2) {
+            List<Gene> child1 = new ArrayList<>();
+            List<Gene> child2 = new ArrayList<>();
+            double crossoverPoint = r.nextDouble();
+            double crossoverRest = 1.0 - crossoverPoint;
+            for (int j = 0; j < p1.size() && j < p2.size(); j++){
+                Gene parent1 = p1.get(j);
+                Gene parent2 = p2.get(j);
+                double angle1 = crossoverPoint * (parent1.angle + 15) +
+                                crossoverRest * (parent2.angle + 15);
+                double angle2 = crossoverRest * (parent1.angle + 15) +
+                                crossoverPoint * (parent2.angle + 15);
+                double power1 =
+                        crossoverPoint * (parent1.power + 1) + crossoverRest * (parent2.power + 1);
+                double power2 =
+                        crossoverRest * (parent1.power + 1) + crossoverPoint * (parent2.power + 1);
+                child1.add(new Gene((int) Math.round(angle1 - 15), (int) Math.round(power1 - 1)));
+                child2.add(new Gene((int) Math.round(angle2 - 15), (int) Math.round(power2 - 1)));
             }
-            int crossoverIndex = r.nextInt(p1.size());
-            List<Gene> child = new ArrayList<>();
-            for (int i = 0; i < p2.size(); i++){
-                child.add(i <= crossoverIndex ? p1.get(i) : p2.get(i));
+            childList.add(child1);
+            childList.add(child2);
+        }
+
+        public void crossoverOnPoint(List<List<Gene>> childList, List<Gene> p1, List<Gene> p2) {
+            int crossoverIndex = r.nextInt(Math.min(p1.size() - 2, p2.size() - 2)) + 1;
+            List<Gene> child1 = new ArrayList<>(p1.subList(0, crossoverIndex));
+            child1.addAll(p2.subList(crossoverIndex, p2.size()));
+            List<Gene> child2 = new ArrayList<>(p2.subList(0, crossoverIndex));
+            child2.addAll(p1.subList(crossoverIndex, p1.size()));
+            childList.add(child1);
+            childList.add(child2);
+        }
+
+        private Individual selectWheel(List<Individual> population) {
+            double fitnessSum = 0.0;
+            for (Individual i : population){
+                fitnessSum += i.fitnessScore;
             }
-            return child;
+            double[] probabilities = new double[population.size()];
+            double previousProbability = 0.0;
+            for (int i = 0; i < population.size(); i++){
+                Individual ind = population.get(i);
+                                   previousProbability += ind.fitnessScore / fitnessSum;
+                probabilities[i] = previousProbability;
+            }
+            double selectProbability = r.nextDouble();
+            for (int i = 0; i < probabilities.length; i++){
+                if (selectProbability < probabilities[i]) return population.get(i);
+            }
+            return population.get(population.size() - 1);
         }
 
         public Individual selectTournament(List<Individual> population) {
@@ -265,13 +282,17 @@ class Player {
             if (o == null || getClass() != o.getClass()) return false;
 
             Individual that = (Individual) o;
-            return gameStateList.equals(that.gameStateList);
+            return fitnessScore - that.fitnessScore < 0.000001 &&
+                   gameStateList.equals(that.gameStateList);
         }
 
         @Override
         public int hashCode() {
             int result;
-            result = 31 * gameStateList.hashCode();
+            long temp;
+            temp   = Double.doubleToLongBits(fitnessScore);
+            result = (int) (temp ^ (temp >>> 32));
+            result = 31 * result * gameStateList.hashCode();
             return result;
         }
 
@@ -285,98 +306,26 @@ class Player {
             int angle = Math.abs(lastState.angle);
             int fuel = Math.abs(lastState.fuel);
 
-/*            //Distance 0-7000
-            fitnessScore += 1.0 - (distance==0.0? 0 : 0.5 + 0.5/7000.0*distance);
-            //speed -500 - 500
-            fitnessScore += 1.0 - (hSpeed<=20.0? 0 : 0.5 + 0.5/500.0*hSpeed);
-            fitnessScore += 1.0 - (vSpeed<=40.0? 0 : 0.5 + 0.5/500.0*vSpeed);
-            //angle -90 - 90
-            fitnessScore += 1.0 - (angle==0? 0 : 0.5 + 0.5/90.0*angle);
-            //fuel 0 - 2000*/
+            //Normalize to 0-100 range by dividing current / max
+            double normDistance = 100.0 - distance / 7000.0 * 100.0;
+            //Make score exponential
+            normDistance *= normDistance;
+            double normHS = 100.0 - (hSpeed < 20.0 ? 0 : hSpeed) / 500.0 * 100.0;
+            normHS *= normHS;
+            double normVS = 100.0 - (vSpeed < 40.0 ? 0 : vSpeed) / 500.0 * 100.0;
+            normHS *= normVS;
+            double normAngle = 100.0 - angle / 90.0 * 100.0;
+            normAngle *= normAngle;
+            double normFuel = fuel / (double) STARTING_FUEL * 100.0;
+            normFuel *= normFuel;
 
-  /*          //Distance 0-7000
-            fitnessScore = 10000;
-            fitnessScore -= distance;
-            //speed -500 - 500
-            fitnessScore -= hSpeed<=20.0? 0 : hSpeed ;
-            fitnessScore -= vSpeed<=40.0? 0 : vSpeed ;
-            //angle -90 - 90
-            fitnessScore -= angle==0? 0 : angle ;
-            
-           // fitnessScore = Math.pow(fitnessScore, 2);
-            
-            */
-
-            //Distance 0-7000
-            fitnessScore = 100000000;
-            fitnessScore -= Math.pow(distance,2);
-            //speed -500 - 500
-            fitnessScore -= Math.pow(hSpeed<=15.0? 0 : hSpeed ,3);
-            fitnessScore -= Math.pow(vSpeed<=35.0? 0 : vSpeed, 3);
-            //angle -90 - 90
-            fitnessScore -= Math.pow(angle,1);
-            if(!lastState.isSafeLanded) fitnessScore -= 10000000;
-            
-            fitnessScore += Math.pow(fuel,0.5); 
-            
-            
-            // fitnessScore = Math.pow(fitnessScore, 2);
-            
-            
-            
-            
-            
-            
-            
-/*            if(lastState.isSafeLanded){
-                fitnessScore= 4 + 1-(lastState.fuel/2000.0);
-            }else{
-                fitnessScore += 1.0 - ((lastState.x < safeAreaBegin ? safeAreaBegin - lastState.x :
-                        lastState.x > safeAreaEnd ? lastState.x - safeAreaEnd : 0) / 6000.0);
-                //speed -500 - 500
-                fitnessScore += 1.0 - ((Math.abs(lastState.hSpeed)*Math.abs(lastState.hSpeed) / (500.0*500.0)));
-                fitnessScore += 1.0 - ((Math.abs(lastState.vSpeed)*Math.abs(lastState.vSpeed) / (500.0*500.0)));
-                //angle -90 - 90
-                fitnessScore += 1 - (lastState.angle == 0 ? 0 : (Math.abs(lastState.angle) / 90.0));
-            }*/
-            
-            
-            
-            /*fitnessScore = 1000;
-            fitnessScore -= lastState.x <safeAreaBegin? safeAreaBegin - lastState.x : lastState.x>safeAreaEnd? lastState.x - safeAreaEnd : 0;
-            fitnessScore -= Math.abs(lastState.hSpeed);
-            fitnessScore -= Math.abs(lastState.vSpeed);
-            fitnessScore -= Math.abs(lastState.angle);*/
-            
-            
-            
-           /* //Distance 0-7000
-            fitnessScore += 1.0 - ((lastState.x < safeAreaBegin ? safeAreaBegin - lastState.x :
-                    lastState.x > safeAreaEnd ? lastState.x - safeAreaEnd : 0) / 7000);
-            //speed -500 - 500
-            fitnessScore += 1.0 - (Math.abs(lastState.hSpeed) <= 20 ? 0 : (Math.abs(lastState
-            .hSpeed) / 500.0));
-            fitnessScore += 1.0 - (Math.abs(lastState.vSpeed) <= 40 ? 0 : (Math.abs(lastState
-            .vSpeed) / 500.0));
-            //angle -90 - 90
-            fitnessScore += 1 - (lastState.angle == 0 ? 0 : (Math.abs(lastState.angle) / 90.0));
-            //fuel 0 - 2000
-            fitnessScore += lastState.fuel / 2000.0;
-*/
-
-            //Distance 0-7000
-         /*   fitnessScore += (7000.0 - (lastState.x < safeAreaBegin ? safeAreaBegin - lastState.x :
-                    lastState.x > safeAreaEnd ? lastState.x - safeAreaEnd : 0)) / 7000.0;
-            //speed -500 - 500
-            fitnessScore *= ((Math.abs(lastState.hSpeed) <= 20.0 ? 1.0 :
-                    ((500.0 - Math.abs(lastState.hSpeed)) / 500.0)) +
-                             (Math.abs(lastState.vSpeed) <= 40.0 ? 1.0 :
-                                     ((500.0 - Math.abs(lastState.vSpeed)) / 500.0))) / 2.0;
-            //angle -90 - 90
-            fitnessScore *= (90.0 - Math.abs(lastState.angle)) / 90.0;
-            //fuel 0 - 2000
-            fitnessScore *= (2000.0 - lastState.fuel) / 2000.0;*/
-
+            //Get fitness
+            fitnessScore = normDistance * GeneticAlgorithm.GENE_WEIGHTS[0] +
+                           normHS * GeneticAlgorithm.GENE_WEIGHTS[1] +
+                           normVS * GeneticAlgorithm.GENE_WEIGHTS[2] +
+                           normAngle * GeneticAlgorithm.GENE_WEIGHTS[3];
+            //Add fuel to score only after safe landing
+            if (lastState.isSafeLanded) fitnessScore += normFuel * GeneticAlgorithm.GENE_WEIGHTS[4];
         }
     }
 
@@ -392,7 +341,7 @@ class Player {
         public Gene() {
             Random r = new Random();
             int angleDir = r.nextInt(3);
-            angle = angleDir==0? -15 : angleDir ==1? 0 : 15;
+            angle = angleDir == 0 ? -15 : angleDir == 1 ? 0 : 15;
             power = r.nextInt(3) - 1;
         }
 
@@ -455,9 +404,9 @@ class Player {
             double oldX = x;
             double oldY = y;
             move();
-            if (fuel<= 0 ||isOutOfBounds() || isIntersect(oldX, oldY)){
+            if (fuel <= 0 || isOutOfBounds() || isIntersect(oldX, oldY)){
                 isLanded     = true;
-                isSafeLanded = (!isOutOfBounds()) && fuel >= 0 && isSafeLand() ;
+                isSafeLanded = (!isOutOfBounds()) && fuel >= 0 && isSafeLand();
             }
         }
 
@@ -505,6 +454,44 @@ class Player {
             if (o == null || getClass() != o.getClass()) return false;
 
             GameState gameState = (GameState) o;
+
+            if (Double.compare(gameState.x, x) != 0) return false;
+            if (Double.compare(gameState.y, y) != 0) return false;
+            if (Double.compare(gameState.hSpeed, hSpeed) != 0) return false;
+            if (Double.compare(gameState.vSpeed, vSpeed) != 0) return false;
+            if (fuel != gameState.fuel) return false;
+            if (angle != gameState.angle) return false;
+            if (power != gameState.power) return false;
+            if (isLanded != gameState.isLanded) return false;
+            return isSafeLanded == gameState.isSafeLanded;
+        }
+
+        @Override
+        public int hashCode() {
+            int result;
+            long temp;
+            temp   = Double.doubleToLongBits(x);
+            result = (int) (temp ^ (temp >>> 32));
+            temp   = Double.doubleToLongBits(y);
+            result = 31 * result + (int) (temp ^ (temp >>> 32));
+            temp   = Double.doubleToLongBits(hSpeed);
+            result = 31 * result + (int) (temp ^ (temp >>> 32));
+            temp   = Double.doubleToLongBits(vSpeed);
+            result = 31 * result + (int) (temp ^ (temp >>> 32));
+            result = 31 * result + fuel;
+            result = 31 * result + angle;
+            result = 31 * result + power;
+            result = 31 * result + (isLanded ? 1 : 0);
+            result = 31 * result + (isSafeLanded ? 1 : 0);
+            return result;
+        }
+
+      /*  @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+
+            GameState gameState = (GameState) o;
             if (isLanded != gameState.isLanded) return false;
             if (isSafeLanded != gameState.isSafeLanded) return false;
             if ((int) gameState.x != (int) x) return false;
@@ -530,7 +517,7 @@ class Player {
             result = 31 * result + (isLanded ? 1 : 0);
             result = 31 * result + (isSafeLanded ? 1 : 0);
             return result;
-        }
+        }   */
     }
 }
 

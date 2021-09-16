@@ -1,5 +1,6 @@
 package src;
 
+import graphDrawer.GraphDrawerApp;
 import javafx.application.Application;
 import marsLander.LanderPath;
 import marsLander.MarsLanderApp;
@@ -15,9 +16,21 @@ public class DrawerController {
     int normalizedWidth = 1750;
     int normalizedHeight = 750;
     private MarsLanderApp app;
+    private GraphDrawerApp graphDrawerApp;
 
     public void updateCoord(int gen, List<LanderPath> paths) {
         app.updateObservable(gen, paths);
+    }
+    
+    public void updateGraph(){
+        
+    }
+    
+    public void startGraphApp(){
+        long time = System.currentTimeMillis();
+        new Thread(() -> Application.launch(GraphDrawerApp.class)).start();
+        graphDrawerApp = GraphDrawerApp.waitForStart();
+        System.out.println("await finished: " + (System.currentTimeMillis() - time) + "ms.");
     }
 
     public void startApp(double[] landscape) {
