@@ -3,13 +3,12 @@ import java.awt.geom.Point2D;
 import java.util.*;
 
 class Player {
-    private final static int MARS_WIDTH = 7000;
-    private final static int MARS_HEIGHT = 3000;
-    public static GeneticAlgorithm GE = new GeneticAlgorithm();
+    public static GeneticAlgorithm GE;
     private static double[] landscape;
     private static double safeAreaBegin = -1;
     private static double safeAreaEnd = -1;
     private static int STARTING_FUEL = 3000;
+
 
     public static void main(String args[]) {
         Scanner in = new Scanner(System.in);
@@ -29,34 +28,29 @@ class Player {
             landscape[i]     = x;
             landscape[i + 1] = y;
         }
-
-        for (double i : landscape){
-            System.err.print(i + " ");
-        }
         System.err.println();
 
         while (true) {
             long t = System.currentTimeMillis();
             GameState gameState = new GameState(in.nextInt(), in.nextInt(), in.nextInt(),
-                    in.nextInt(), in.nextInt(), in.nextInt(), in.nextInt());
+                    in.nextInt(), in.nextInt(), in.nextInt(), in.nextInt(), landscape,
+                    safeAreaBegin, safeAreaEnd);
             if (STARTING_FUEL == 3000) STARTING_FUEL = gameState.fuel;
-            /*System.err.println(((int) gameState.x) + " " + ((int) gameState.y) + " " +
-                               ((int) gameState.hSpeed) + " " + ((int) gameState.vSpeed) + " " +
-                               gameState.fuel + " " + gameState.angle + " " + gameState.power);*/
+
             List<Individual> evaluate = GE.evaluate(gameState, t, new int[1]);
-            if (!evaluate.isEmpty()){
+            if ((!evaluate.isEmpty()) && evaluate.get(0).gameStateList.get(
+                    evaluate.get(0).gameStateList.size() - 1).isSafeLanded){
                 Individual individual = evaluate.get(0);
                 GameState nextGS = individual.gameStateList.get(0);
                 System.out.println((nextGS.angle) + " " + (nextGS.power));
             } else {
-                System.out.println(0 + " " + 0);
+                System.out.println(0 + " " + 4);
             }
-            //Gene gene = individual.path.get(0);
-            // System.out.println(-50 + " " + 1);
         }
     }
 
-    static double[] getNearestLandscapeSegment(double x) {
+
+    double[] getNearestLandscapeSegment(double x) {
         for (int i = 2; i < landscape.length; i += 2){
             if (landscape[i] >= x)
                 return new double[]{landscape[i - 2], landscape[i - 1], landscape[i],
@@ -66,7 +60,8 @@ class Player {
     }
 
     void simulationInit(double[] landscape) {
-        Player.landscape = landscape;
+        GE             = new GeneticAlgorithm(this);
+        this.landscape = landscape;
         double lastX = -1;
         double lastY = -1;
         for (int i = 0; i < landscape.length; i += 2){
@@ -80,24 +75,29 @@ class Player {
     }
 
     static class GeneticAlgorithm {
-        public static boolean IS_TOURNAMENT_SELECT = false;
-        public static boolean IS_POINT_CROSSOVER = false;
-        public static boolean RANDOM_CROSSOVER_ON_DUPLICATE = true;
-        public static boolean REMOVE_DUPLICATES = true;
-        public static boolean REMOVE_STEP = false;
-        public static int TOURNAMENT_SIZE = 5;
-        public static double ELITISM_PERCENTAGE = 0.2;
-        public static int INDIVIDUAL_LENGTH = 200;
-        public static int DESIRED_POPULATION_SIZE = 200;
-        public static double CROSSOVER_PERCENTAGE = 0.6;
-        public static double MUTATION_CHANCE = 0.02;
-        public static double[] GENE_WEIGHTS = new double[]{0.3, 0.25, 0.25, 0.2, 1};
         private final Random r = new Random();
+        public boolean IS_TOURNAMENT_SELECT = true;
+        public boolean IS_POINT_CROSSOVER = true;
+        public boolean RANDOM_CROSSOVER_ON_DUPLICATE = true;
+        public boolean REMOVE_DUPLICATES = false;
+        public boolean REMOVE_STEP = true;
+        public int TOURNAMENT_SIZE = 4;
+        public double ELITISM_PERCENTAGE = 0.3;
+        public int INDIVIDUAL_LENGTH = 200;
+        public int DESIRED_POPULATION_SIZE = 250;
+        public double CROSSOVER_PERCENTAGE = 0.7;
+        public double MUTATION_CHANCE = 0.02;
+        public double[] GENE_WEIGHTS = new double[]{0.15, 0.3, 0.4, 0.15, 1};
         public long EVALUATE_TIME = 100;
+        Player p;
         private List<Individual> pop = new ArrayList<>();
 
+        public GeneticAlgorithm(Player p) {
+            this.p = p;
+        }
 
         public List<Individual> evaluate(GameState game, long t, int[] counterArr) {
+            if (p.STARTING_FUEL == 3000) p.STARTING_FUEL = game.fuel;
             if (pop.size() < DESIRED_POPULATION_SIZE) pop.addAll(
                     simulateGenes(game, getRandomGenes(DESIRED_POPULATION_SIZE - pop.size())));
             int counter = 0;
@@ -123,8 +123,9 @@ class Player {
 
             //System.err.println("Genetic evaluations: " + counter);
             //System.err.println(pop.get(0).fitnessScore);
-           // System.err.println(pop.get(0).gameStateList.get(pop.get(0).gameStateList.size() - 1));
-            if(REMOVE_STEP) removeStep();
+            // System.err.println(pop.get(0).gameStateList.get(pop.get(0).gameStateList.size() - 
+            // 1));
+            if (REMOVE_STEP) removeStep();
             return pop;
         }
 
@@ -165,7 +166,9 @@ class Player {
                     genes.add(gene);
                     history.add(new GameState(newGS));
                 }
-                result.add(new Individual(genes.subList(0, history.size()), history));
+                result.add(
+                        new Individual(new ArrayList<>(genes.subList(0, history.size())), history,
+                                p));
             }
             return result;
         }
@@ -192,8 +195,8 @@ class Player {
                 } else if (p1 == p2){
                     do {
                         ind2 = selectTournament(population);
+                        p2   = ind2.path;
                     } while (p1 == p2);
-                    p2 = ind2.path;
                 }
                 if (IS_POINT_CROSSOVER) crossoverOnPoint(result, p1, p2);
                 else crossoverContinuous(result, p1, p2);
@@ -269,10 +272,12 @@ class Player {
         List<Gene> path;
         List<GameState> gameStateList;
         double fitnessScore;
+        Player p;
 
-        public Individual(List<Gene> path, List<GameState> gameStateList) {
+        public Individual(List<Gene> path, List<GameState> gameStateList, Player p) {
             this.path          = path;
             this.gameStateList = gameStateList;
+            this.p             = p;
             getFitness();
         }
 
@@ -299,8 +304,7 @@ class Player {
         public void getFitness() {
             GameState lastState = gameStateList.get(gameStateList.size() - 1);
             fitnessScore = 0;
-            double distance = lastState.x < safeAreaBegin ? safeAreaBegin - lastState.x :
-                    lastState.x > safeAreaEnd ? lastState.x - safeAreaEnd : 0.0;
+            double distance = lastState.isLanded ? lastState.distanceToLanding : 7000.0;
             double hSpeed = Math.abs(lastState.hSpeed);
             double vSpeed = Math.abs(lastState.vSpeed);
             int angle = Math.abs(lastState.angle);
@@ -316,16 +320,14 @@ class Player {
             normHS *= normVS;
             double normAngle = 100.0 - angle / 90.0 * 100.0;
             normAngle *= normAngle;
-            double normFuel = fuel / (double) STARTING_FUEL * 100.0;
+            double normFuel = fuel / (double) p.STARTING_FUEL * 100.0;
             normFuel *= normFuel;
 
             //Get fitness
-            fitnessScore = normDistance * GeneticAlgorithm.GENE_WEIGHTS[0] +
-                           normHS * GeneticAlgorithm.GENE_WEIGHTS[1] +
-                           normVS * GeneticAlgorithm.GENE_WEIGHTS[2] +
-                           normAngle * GeneticAlgorithm.GENE_WEIGHTS[3];
+            fitnessScore = normDistance * p.GE.GENE_WEIGHTS[0] + normHS * p.GE.GENE_WEIGHTS[1] +
+                           normVS * p.GE.GENE_WEIGHTS[2] + normAngle * p.GE.GENE_WEIGHTS[3];
             //Add fuel to score only after safe landing
-            if (lastState.isSafeLanded) fitnessScore += normFuel * GeneticAlgorithm.GENE_WEIGHTS[4];
+            if (lastState.isSafeLanded) fitnessScore += normFuel * p.GE.GENE_WEIGHTS[4];
         }
     }
 
@@ -365,6 +367,7 @@ class Player {
     }
 
     static class GameState {
+        public double distanceToLanding = 0.0;
         double x;
         double y;
         double hSpeed;
@@ -374,28 +377,38 @@ class Player {
         int power;
         boolean isLanded = false;
         boolean isSafeLanded = false;
+        private double[] landscape;
+        private double safeAreaBegin = -1;
+        private double safeAreaEnd = -1;
 
         public GameState(double x, double y, double hSpeed, double vSpeed, int fuel, int angle,
-                         int power) {
-            this.x      = x;
-            this.y      = y;
-            this.hSpeed = hSpeed;
-            this.vSpeed = vSpeed;
-            this.fuel   = fuel;
-            this.angle  = angle;
-            this.power  = power;
+                         int power, double[] landscape, double safeAreaBegin, double safeAreaEnd) {
+            this.x             = x;
+            this.y             = y;
+            this.hSpeed        = hSpeed;
+            this.vSpeed        = vSpeed;
+            this.fuel          = fuel;
+            this.angle         = angle;
+            this.power         = power;
+            this.landscape     = landscape;
+            this.safeAreaBegin = safeAreaBegin;
+            this.safeAreaEnd   = safeAreaEnd;
         }
 
         public GameState(GameState gs) {
-            x            = gs.x;
-            y            = gs.y;
-            hSpeed       = gs.hSpeed;
-            vSpeed       = gs.vSpeed;
-            fuel         = gs.fuel;
-            angle        = gs.angle;
-            power        = gs.power;
-            isLanded     = gs.isLanded;
-            isSafeLanded = gs.isSafeLanded;
+            x                      = gs.x;
+            y                      = gs.y;
+            hSpeed                 = gs.hSpeed;
+            vSpeed                 = gs.vSpeed;
+            fuel                   = gs.fuel;
+            angle                  = gs.angle;
+            power                  = gs.power;
+            isLanded               = gs.isLanded;
+            isSafeLanded           = gs.isSafeLanded;
+            this.landscape         = gs.landscape;
+            this.safeAreaBegin     = gs.safeAreaBegin;
+            this.safeAreaEnd       = gs.safeAreaEnd;
+            this.distanceToLanding = gs.distanceToLanding;
         }
 
         public void simulate(int dAngle, int dPower) {
@@ -419,9 +432,61 @@ class Player {
                     new Point2D.Double(x, y));
             for (int i = 0; i < landscape.length - 2; i += 2){
                 if (line.intersectsLine(landscape[i], landscape[i + 1], landscape[i + 2],
-                        landscape[i + 3])) return true;
+                        landscape[i + 3])){
+                    double[] intersection = intersection(line,
+                            new Line2D.Double(new Point2D.Double(landscape[i], landscape[i + 1]),
+                                    new Point2D.Double(landscape[i + 2], landscape[i + 3])));
+                    distanceToLanding = getDistance(intersection);
+                    return true;
+                }
             }
             return false;
+        }
+
+        private double getDistance(double[] inter) {
+            double interX = inter[0];
+            double interY = inter[1];
+            if (interX >= safeAreaBegin && interX <= safeAreaEnd){
+                return 0.0;
+            }
+            double dist = 100.0;
+            if (interX < safeAreaBegin){
+                for (int i = 0; i < landscape.length; i += 2){
+                    if (landscape[i] >= safeAreaBegin) break;
+                    if (landscape[i] < interX) continue;
+                    if (landscape[i] > interX){
+                        dist += Point2D.distance(interX, interY, landscape[i], landscape[i + 1]);
+                        interX = landscape[i];
+                        interY = landscape[i + 1];
+                    }
+                }
+            } else {
+                for (int i = landscape.length - 2; i >= 0; i -= 2){
+                    if (landscape[i] <= safeAreaEnd) break;
+                    if (landscape[i] > interX) continue;
+                    if (landscape[i] < interX){
+                        dist += Point2D.distance(interX, interY, landscape[i], landscape[i + 1]);
+                        interX = landscape[i];
+                        interY = landscape[i + 1];
+                    }
+                }
+            }
+            return dist;
+        }
+
+        private double[] intersection(Line2D a, Line2D b) {
+            double x1 = a.getX1(), y1 = a.getY1(), x2 = a.getX2(), y2 = a.getY2(), x3 = b.getX1()
+                    , y3 = b
+                    .getY1(), x4 = b.getX2(), y4 = b.getY2();
+            double d = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
+            if (d == 0){
+                return new double[]{0.0, 0.0};
+            }
+
+            double xi = ((x3 - x4) * (x1 * y2 - y1 * x2) - (x1 - x2) * (x3 * y4 - y3 * x4)) / d;
+            double yi = ((y3 - y4) * (x1 * y2 - y1 * x2) - (y1 - y2) * (x3 * y4 - y3 * x4)) / d;
+
+            return new double[]{xi, yi};
         }
 
         private boolean isSafeLand() {

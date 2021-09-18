@@ -1,36 +1,34 @@
 package src;
 
+import graphDrawer.GraphDTO;
 import graphDrawer.GraphDrawerApp;
 import javafx.application.Application;
 import marsLander.LanderPath;
 import marsLander.MarsLanderApp;
-
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 public class DrawerController {
-    int maxWidth = 1800;
-    int maxHeight = 1000;
-    int normalizedWidth = 1750;
-    int normalizedHeight = 750;
     private MarsLanderApp app;
-    private GraphDrawerApp graphDrawerApp;
 
     public void updateCoord(int gen, List<LanderPath> paths) {
         app.updateObservable(gen, paths);
     }
     
-    public void updateGraph(){
-        
+    public void showGraph(String testName, Map<String, Map<Boolean, Number>> data){
+        startGraphApp().showBarChart(testName, data);
+    }
+
+    public void showLineChart(String testName, Map<String, Map<Number, Number>> data){
+        startGraphApp().showLineChart(testName, data);
+    }
+    public void showMultiLineChart(String testName, Map<String, Map<double[], Number>> data){
+        startGraphApp().showMultiLineChart(testName, data);
     }
     
-    public void startGraphApp(){
-        long time = System.currentTimeMillis();
+    private GraphDrawerApp startGraphApp(){
         new Thread(() -> Application.launch(GraphDrawerApp.class)).start();
-        graphDrawerApp = GraphDrawerApp.waitForStart();
-        System.out.println("await finished: " + (System.currentTimeMillis() - time) + "ms.");
+        return GraphDrawerApp.waitForStart();
     }
 
     public void startApp(double[] landscape) {
