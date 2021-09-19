@@ -9,10 +9,9 @@ class Player {
     private static double safeAreaEnd = -1;
     private static int STARTING_FUEL = 3000;
 
-
     public static void main(String args[]) {
         Scanner in = new Scanner(System.in);
-        int N = in.nextInt(); // the number of points used to draw the surface of Mars.
+        int N = in.nextInt();
         landscape = new double[N * 2];
         double lastX = -1;
         double lastY = -1;
@@ -29,14 +28,14 @@ class Player {
             landscape[i + 1] = y;
         }
         System.err.println();
-
+        Player p = new Player();
+        GE = new GeneticAlgorithm(p);
         while (true) {
             long t = System.currentTimeMillis();
             GameState gameState = new GameState(in.nextInt(), in.nextInt(), in.nextInt(),
                     in.nextInt(), in.nextInt(), in.nextInt(), in.nextInt(), landscape,
                     safeAreaBegin, safeAreaEnd);
             if (STARTING_FUEL == 3000) STARTING_FUEL = gameState.fuel;
-
             List<Individual> evaluate = GE.evaluate(gameState, t, new int[1]);
             if ((!evaluate.isEmpty()) && evaluate.get(0).gameStateList.get(
                     evaluate.get(0).gameStateList.size() - 1).isSafeLanded){
@@ -44,12 +43,15 @@ class Player {
                 GameState nextGS = individual.gameStateList.get(0);
                 System.out.println((nextGS.angle) + " " + (nextGS.power));
             } else {
-                System.out.println(0 + " " + 4);
+                
+                int angle = (gameState.x<safeAreaBegin? -20 : gameState.x>safeAreaEnd? 20 : 0);
+                angle = gameState.hSpeed>20? 20 : gameState.hSpeed<-20? -20 : angle;
+                
+                System.out.println(angle + " " + (angle==0?3:4));
             }
         }
     }
-
-
+    
     double[] getNearestLandscapeSegment(double x) {
         for (int i = 2; i < landscape.length; i += 2){
             if (landscape[i] >= x)
@@ -87,8 +89,8 @@ class Player {
         public int DESIRED_POPULATION_SIZE = 250;
         public double CROSSOVER_PERCENTAGE = 0.7;
         public double MUTATION_CHANCE = 0.02;
-        public double[] GENE_WEIGHTS = new double[]{0.15, 0.3, 0.4, 0.15, 1};
-        public long EVALUATE_TIME = 100;
+        public double[] GENE_WEIGHTS = new double[]{0.2, 0.3, 0.4, 0.1, 1};
+        public long EVALUATE_TIME = 90;
         Player p;
         private List<Individual> pop = new ArrayList<>();
 
@@ -97,6 +99,7 @@ class Player {
         }
 
         public List<Individual> evaluate(GameState game, long t, int[] counterArr) {
+            System.err.println("eval begin");
             if (p.STARTING_FUEL == 3000) p.STARTING_FUEL = game.fuel;
             if (pop.size() < DESIRED_POPULATION_SIZE) pop.addAll(
                     simulateGenes(game, getRandomGenes(DESIRED_POPULATION_SIZE - pop.size())));
@@ -115,16 +118,11 @@ class Player {
                 else if (newPop.size() < DESIRED_POPULATION_SIZE) newPop.addAll(
                         getRandomGenes(DESIRED_POPULATION_SIZE - newPop.size()));
                 pop = simulateGenes(game, newPop);
-                if (REMOVE_DUPLICATES) pop = new ArrayList<>(new HashSet<>(pop));
+                
                 pop.sort(Comparator.comparingDouble((Individual i) -> i.fitnessScore).reversed());
                 counter++;
             }
             counterArr[0] += counter;
-
-            //System.err.println("Genetic evaluations: " + counter);
-            //System.err.println(pop.get(0).fitnessScore);
-            // System.err.println(pop.get(0).gameStateList.get(pop.get(0).gameStateList.size() - 
-            // 1));
             if (REMOVE_STEP) removeStep();
             return pop;
         }
@@ -228,13 +226,23 @@ class Player {
         }
 
         public void crossoverOnPoint(List<List<Gene>> childList, List<Gene> p1, List<Gene> p2) {
-            int crossoverIndex = r.nextInt(Math.min(p1.size() - 2, p2.size() - 2)) + 1;
-            List<Gene> child1 = new ArrayList<>(p1.subList(0, crossoverIndex));
-            child1.addAll(p2.subList(crossoverIndex, p2.size()));
-            List<Gene> child2 = new ArrayList<>(p2.subList(0, crossoverIndex));
-            child2.addAll(p1.subList(crossoverIndex, p1.size()));
-            childList.add(child1);
-            childList.add(child2);
+            if(p1.size()<2 || p2.size()<2) {
+                childList.add(p1);
+                childList.add(p2);
+                return;
+            }
+            try {
+                int crossoverIndex = (int) (r.nextDouble() * Math.min(p1.size(), p2.size()));
+                List<Gene> child1 = new ArrayList<>(p1.subList(0, crossoverIndex));
+                child1.addAll(p2.subList(crossoverIndex, p2.size()));
+                List<Gene> child2 = new ArrayList<>(p2.subList(0, crossoverIndex));
+                child2.addAll(p1.subList(crossoverIndex, p1.size()));
+                childList.add(child1);
+                childList.add(child2);
+            } catch (Exception e) {
+                System.err.println("1:" + p1.size() + " 2:" + p2.size());
+                System.exit(0);
+            }
         }
 
         private Individual selectWheel(List<Individual> population) {
@@ -292,6 +300,11 @@ class Player {
         }
 
         @Override
+        public String toString() {
+            return "Individual fitnessScore=" + fitnessScore;
+        }
+
+        @Override
         public int hashCode() {
             int result;
             long temp;
@@ -342,8 +355,10 @@ class Player {
 
         public Gene() {
             Random r = new Random();
-            int angleDir = r.nextInt(3);
-            angle = angleDir == 0 ? -15 : angleDir == 1 ? 0 : 15;
+           // int angleDir = r.nextInt(3);
+            //angle = angleDir == 0 ? -15 : angleDir == 1 ? 0 : 15;
+            int angleRand = r.nextInt(11) -5;
+            angle = angleRand * 3;
             power = r.nextInt(3) - 1;
         }
 
@@ -433,10 +448,11 @@ class Player {
             for (int i = 0; i < landscape.length - 2; i += 2){
                 if (line.intersectsLine(landscape[i], landscape[i + 1], landscape[i + 2],
                         landscape[i + 3])){
-                    double[] intersection = intersection(line,
+                    /*double[] intersection = intersection(line,
                             new Line2D.Double(new Point2D.Double(landscape[i], landscape[i + 1]),
                                     new Point2D.Double(landscape[i + 2], landscape[i + 3])));
-                    distanceToLanding = getDistance(intersection);
+                    distanceToLanding = getDistance(intersection);*/
+                    distanceToLanding = x<safeAreaBegin? safeAreaBegin-x : x>safeAreaEnd? x-safeAreaEnd : 0;
                     return true;
                 }
             }
@@ -551,38 +567,6 @@ class Player {
             return result;
         }
 
-      /*  @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-
-            GameState gameState = (GameState) o;
-            if (isLanded != gameState.isLanded) return false;
-            if (isSafeLanded != gameState.isSafeLanded) return false;
-            if ((int) gameState.x != (int) x) return false;
-            if ((int) gameState.y != (int) y) return false;
-            if ((int) gameState.hSpeed != (int) hSpeed) return false;
-            if ((int) gameState.vSpeed != (int) vSpeed) return false;
-            if (fuel != gameState.fuel) return false;
-            if (angle != gameState.angle) return false;
-
-            return power == gameState.power;
-        }
-
-        @Override
-        public int hashCode() {
-            int result;
-            result = (int) x;
-            result = 31 * result + (int) y;
-            result = 31 * result + (int) hSpeed;
-            result = 31 * result + (int) vSpeed;
-            result = 31 * result + fuel;
-            result = 31 * result + angle;
-            result = 31 * result + power;
-            result = 31 * result + (isLanded ? 1 : 0);
-            result = 31 * result + (isSafeLanded ? 1 : 0);
-            return result;
-        }   */
     }
 }
 
