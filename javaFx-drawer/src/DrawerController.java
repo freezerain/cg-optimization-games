@@ -1,5 +1,6 @@
 package src;
 
+import CodeVsZombies.CodeVsZombiesApp;
 import graphDrawer.GraphDTO;
 import graphDrawer.GraphDrawerApp;
 import javafx.application.Application;
@@ -10,6 +11,7 @@ import java.util.Map;
 
 public class DrawerController {
     private MarsLanderApp app;
+    
 
     public void updateCoord(int gen, List<LanderPath> paths) {
         app.updateObservable(gen, paths);
@@ -26,9 +28,26 @@ public class DrawerController {
         startGraphApp().showMultiLineChart(testName, data);
     }
     
+    public void updateCodeVsZombieApp(int[] player, int[] humans, int[] zombies, int[][] paths,
+                                      double[] scores){
+        startCodeVsZombieApp().updateScene( player,  humans,  zombies,  paths,
+         scores);
+    }
+
+    private CodeVsZombiesApp startCodeVsZombieApp(){
+        if(CodeVsZombiesApp.appReference == null){
+            new Thread(() -> Application.launch(CodeVsZombiesApp.class)).start();
+            return CodeVsZombiesApp.waitForStart();
+        }
+        else return CodeVsZombiesApp.appReference;
+    }
+    
     private GraphDrawerApp startGraphApp(){
-        new Thread(() -> Application.launch(GraphDrawerApp.class)).start();
-        return GraphDrawerApp.waitForStart();
+        if(GraphDrawerApp.appReference == null){
+            new Thread(() -> Application.launch(GraphDrawerApp.class)).start();
+            return GraphDrawerApp.waitForStart();
+        }
+        else return GraphDrawerApp.appReference;
     }
 
     public void startApp(double[] landscape) {

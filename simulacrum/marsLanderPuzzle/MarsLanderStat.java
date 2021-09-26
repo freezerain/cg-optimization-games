@@ -1,12 +1,12 @@
 package simulacrum.marsLanderPuzzle;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class MarsLanderStat {
     public TestType type;
-    public boolean IS_TOURNAMENT_SELECT = true;
-    public boolean IS_POINT_CROSSOVER = true;
     public boolean RANDOM_CROSSOVER_ON_DUPLICATE = true;
     public boolean REMOVE_DUPLICATES = false;
     public int TOURNAMENT_SIZE = 4;
@@ -16,24 +16,28 @@ public class MarsLanderStat {
     public double MUTATION_CHANCE = 0.02;
     public double[] GENE_WEIGHTS = new double[]{0.15, 0.3, 0.4, 0.15, 1};
 
-    public int time = 0;
-    public int firstSum = 0;
-    public int tenSum = 0;
-    public double bestFitSum = 0;
-    public double lastFitSum = 0;
-    public int failed = 0;
+    public Number[] numbers = new Number[6];
+    String[] names = {"Time", "First time", "Ten time", "Best fitness", "Last fitness", "Failed"};
 
     public MarsLanderStat() {
     }
 
-    public MarsLanderStat(TestType type, boolean IS_TOURNAMENT_SELECT, boolean IS_POINT_CROSSOVER,
-                          boolean RANDOM_CROSSOVER_ON_DUPLICATE, boolean REMOVE_DUPLICATES,
-                          int TOURNAMENT_SIZE, double ELITISM_PERCENTAGE,
-                          int DESIRED_POPULATION_SIZE, double CROSSOVER_PERCENTAGE,
-                          double MUTATION_CHANCE, double[] GENE_WEIGHTS) {
+    public MarsLanderStat(MarsLanderStat ms) {
+        this.type                          = ms.type;
+        this.RANDOM_CROSSOVER_ON_DUPLICATE = ms.RANDOM_CROSSOVER_ON_DUPLICATE;
+        this.REMOVE_DUPLICATES             = ms.REMOVE_DUPLICATES;
+        this.TOURNAMENT_SIZE               = ms.TOURNAMENT_SIZE;
+        this.ELITISM_PERCENTAGE            = ms.ELITISM_PERCENTAGE;
+        this.DESIRED_POPULATION_SIZE       = ms.DESIRED_POPULATION_SIZE;
+        this.CROSSOVER_PERCENTAGE          = ms.CROSSOVER_PERCENTAGE;
+        this.MUTATION_CHANCE               = ms.MUTATION_CHANCE;
+        this.GENE_WEIGHTS                  = ms.GENE_WEIGHTS;
+        this.numbers = ms.numbers;
+        this.names = ms.names;
+    }
+
+    public MarsLanderStat(TestType type, boolean RANDOM_CROSSOVER_ON_DUPLICATE, boolean REMOVE_DUPLICATES, int TOURNAMENT_SIZE, double ELITISM_PERCENTAGE, int DESIRED_POPULATION_SIZE, double CROSSOVER_PERCENTAGE, double MUTATION_CHANCE, double[] GENE_WEIGHTS) {
         this.type = type;
-        this.IS_TOURNAMENT_SELECT = IS_TOURNAMENT_SELECT;
-        this.IS_POINT_CROSSOVER = IS_POINT_CROSSOVER;
         this.RANDOM_CROSSOVER_ON_DUPLICATE = RANDOM_CROSSOVER_ON_DUPLICATE;
         this.REMOVE_DUPLICATES = REMOVE_DUPLICATES;
         this.TOURNAMENT_SIZE = TOURNAMENT_SIZE;
@@ -43,103 +47,229 @@ public class MarsLanderStat {
         this.MUTATION_CHANCE = MUTATION_CHANCE;
         this.GENE_WEIGHTS = GENE_WEIGHTS;
     }
-
-    public static List<List<MarsLanderStat>> getTests() {
-        List<List<MarsLanderStat>> testList = new ArrayList<>();
-/*        List<MarsLanderStat> isTourList = new ArrayList<>();
-        for (int i = 0; i < 2; i++){
-            MarsLanderStat m = new MarsLanderStat();
-            m.type = TestType.TOURNAMENT;
-            m.IS_TOURNAMENT_SELECT = i == 0;
-            isTourList.add(m);
+    public static List<MarsLanderStat> getRandomDuplTests(List<MarsLanderStat> startingList){
+        if(startingList.isEmpty()) startingList.add(new MarsLanderStat());
+        ArrayList<MarsLanderStat> result = new ArrayList<>();
+        for (MarsLanderStat initStat : startingList){
+            MarsLanderStat newStatTrue = new MarsLanderStat(initStat);
+            MarsLanderStat newStatFalse= new MarsLanderStat(initStat);
+            newStatTrue.type = TestType.RANDOM_CROSSOVER;
+            newStatFalse.type = TestType.RANDOM_CROSSOVER;
+            newStatTrue.RANDOM_CROSSOVER_ON_DUPLICATE = true;
+            newStatFalse.RANDOM_CROSSOVER_ON_DUPLICATE = false;
+            result.add(newStatTrue);
+            result.add(newStatFalse);
         }
-        testList.add(isTourList);
-        List<MarsLanderStat> isPointList = new ArrayList<>();
-        for (int i = 0; i < 2; i++){
-            MarsLanderStat m = new MarsLanderStat();
-            m.type = TestType.POINT_CROSSOVER;
-            m.IS_POINT_CROSSOVER = i == 0;
-            isPointList.add(m);
+        return result;
+    }
+    public static List<MarsLanderStat> getRemoveDuplTests(List<MarsLanderStat> startingList){
+        if(startingList.isEmpty()) startingList.add(new MarsLanderStat());
+        ArrayList<MarsLanderStat> result = new ArrayList<>();
+        for (MarsLanderStat initStat : startingList){
+            MarsLanderStat newStatTrue = new MarsLanderStat(initStat);
+            MarsLanderStat newStatFalse= new MarsLanderStat(initStat);
+            newStatTrue.type = TestType.REMOVE_DUPLICATES;
+            newStatFalse.type = TestType.REMOVE_DUPLICATES;
+            newStatTrue.REMOVE_DUPLICATES = true;
+            newStatFalse.REMOVE_DUPLICATES = false;
+            result.add(newStatTrue);
+            result.add(newStatFalse);
         }
-        testList.add(isPointList);
-        List<MarsLanderStat> isRandList = new ArrayList<>();
-        for (int i = 0; i < 2; i++){
-            MarsLanderStat m = new MarsLanderStat();
-            m.type = TestType.RANDOM_CROSSOVER;
-            m.RANDOM_CROSSOVER_ON_DUPLICATE = i == 0;
-            isRandList.add(m);
+        return result;
+    }
+    public static List<MarsLanderStat> getElitismChanceTests(List<MarsLanderStat> startingList){
+        if(startingList.isEmpty()) startingList.add(new MarsLanderStat());
+        ArrayList<MarsLanderStat> result = new ArrayList<>();
+        for (MarsLanderStat initStat : startingList){
+            for (int i = 0; i <= 10 ; i++){
+                MarsLanderStat newStat = new MarsLanderStat(initStat);
+                newStat.type = TestType.ELITISM_PERCENTAGE;
+                newStat.ELITISM_PERCENTAGE = i/100.0;
+                result.add(newStat);
+            }
         }
-        testList.add(isRandList);
-        List<MarsLanderStat> isRemoveList = new ArrayList<>();
-        for (int i = 0; i < 2; i++){
-            MarsLanderStat m = new MarsLanderStat();
-            m.type = TestType.REMOVE_DUPLICATES;
-            m.REMOVE_DUPLICATES = i == 0;
-            isRemoveList.add(m);
+        return result;
+    }
+    public static List<MarsLanderStat> getPopSizeTests(List<MarsLanderStat> startingList){
+        if(startingList.isEmpty()) startingList.add(new MarsLanderStat());
+        ArrayList<MarsLanderStat> result = new ArrayList<>();
+        for (MarsLanderStat initStat : startingList){
+            for (int i = 25; i <= 500 ; i+=25){
+                MarsLanderStat newStat = new MarsLanderStat(initStat);
+                newStat.type = TestType.DESIRED_POPULATION_SIZE;
+                newStat.DESIRED_POPULATION_SIZE = i;
+                result.add(newStat);
+            }
         }
-        testList.add(isRemoveList);*/
- /*       List<MarsLanderStat> tournamentList = new ArrayList<>();
-        for (int i = 2; i <= 10; i += 2){
-            MarsLanderStat m = new MarsLanderStat();
-            m.type = TestType.TOURNAMENT_SIZE;
-            m.IS_TOURNAMENT_SELECT = true;
-            m.TOURNAMENT_SIZE = i;
-            tournamentList.add(m);
+        return result;
+    }
+    public static List<MarsLanderStat> getCrossoverChanceTests(List<MarsLanderStat> startingList){
+        if(startingList.isEmpty()) startingList.add(new MarsLanderStat());
+        ArrayList<MarsLanderStat> result = new ArrayList<>();
+        for (MarsLanderStat initStat : startingList){
+            for (int i = 50; i <= 100-initStat.ELITISM_PERCENTAGE*100 ; i+=10){
+                MarsLanderStat newStat = new MarsLanderStat(initStat);
+                newStat.type = TestType.CROSSOVER_PERCENTAGE;
+                newStat.CROSSOVER_PERCENTAGE = i/100.0;
+                result.add(newStat);
+            }
         }
-        testList.add(tournamentList);
-        List<MarsLanderStat> eliteList = new ArrayList<>();
-        for (int i = 1; i <= 5; i++){
-            MarsLanderStat m = new MarsLanderStat();
-            m.type = TestType.ELITISM_PERCENTAGE;
-            m.ELITISM_PERCENTAGE = i / 100.0;
-            eliteList.add(m);
+        return result;
+    }
+    public static List<MarsLanderStat> getMutationChanceTests(List<MarsLanderStat> startingList){
+        if(startingList.isEmpty()) startingList.add(new MarsLanderStat());
+        ArrayList<MarsLanderStat> result = new ArrayList<>();
+        for (MarsLanderStat initStat : startingList){
+            for (int i = 1; i <= 5 ; i++){
+                MarsLanderStat newStat = new MarsLanderStat(initStat);
+                newStat.type = TestType.MUTATION_CHANCE;
+                newStat.MUTATION_CHANCE = i/100.0;
+                result.add(newStat);
+            }
         }
-        testList.add(eliteList);
-        List<MarsLanderStat> desiredList = new ArrayList<>();
-        for (int i = 50; i <= 500; i += 50){
-            MarsLanderStat m = new MarsLanderStat();
-            m.type = TestType.DESIRED_POPULATION_SIZE;
-            m.DESIRED_POPULATION_SIZE = i;
-            desiredList.add(m);
+        return result;
+    }
+    public static List<MarsLanderStat> getWeightTests(List<MarsLanderStat> startingList){
+        if(startingList.isEmpty()) startingList.add(new MarsLanderStat());
+        ArrayList<MarsLanderStat> result = new ArrayList<>();
+        for (MarsLanderStat initStat: startingList) {
+            for (int i = 10; i <= 100; i+=10){
+                for (int j = 0; j < 5; j++){
+                    MarsLanderStat newStat = new MarsLanderStat(initStat);
+                    newStat.type = TestType.WEIGHTS;
+                    newStat.GENE_WEIGHTS[j] = i/100.0;
+                    result.add(newStat);
+                }
+            }
         }
-        testList.add(desiredList);
-        List<MarsLanderStat> crossoverList = new ArrayList<>();
-        for (int i = 50; i <= 80; i += 10){
-            MarsLanderStat m = new MarsLanderStat();
-            m.type = TestType.CROSSOVER_PERCENTAGE;
-            m.CROSSOVER_PERCENTAGE = i / 100.0;
-            crossoverList.add(m);
-        }
-        testList.add(crossoverList);
-        List<MarsLanderStat> mutationList = new ArrayList<>();
-        for (int i = 1; i <= 5; i++){
-            MarsLanderStat m = new MarsLanderStat();
-            m.type = TestType.MUTATION_CHANCE;
-            m.MUTATION_CHANCE = i / 100.0;
-            mutationList.add(m);
-        }
-        testList.add(mutationList);*/
-        List<MarsLanderStat> weightList = new ArrayList<>();
-        for (int w1 = 20; w1 <= 40; w1 += 10)
-            for (int w2 = 20; w2 <= 60 - w1; w2 += 10)
-                for (int w3 = 20; w3 <= 80 - w1 - w2; w3 += 10)
-                    for (int w4 = 20; w4 <= 100 - w1 - w2 - w3; w4 += 10)
-                        
-                        for (int w5 = 100; w5 <= 100; w5 += 25){
-                            MarsLanderStat m = new MarsLanderStat();
-                            m.type = TestType.WEIGHTS;
-                            m.GENE_WEIGHTS = new double[]{w1 / 100.0, w2 / 100.0, w3 / 100.0,
-                                    w4 / 100.0, w5 / 100.0,};
-                            weightList.add(m);
-                        }
-        testList.add(weightList);
-        return testList;
+        return result;
     }
     
-    public static enum TestType{
-        TOURNAMENT, POINT_CROSSOVER, RANDOM_CROSSOVER, REMOVE_DUPLICATES, TOURNAMENT_SIZE, 
-        ELITISM_PERCENTAGE, DESIRED_POPULATION_SIZE, CROSSOVER_PERCENTAGE, MUTATION_CHANCE,
-        WEIGHTS
+    public void putBooleanMap(Map<String, Map<String, Map<Boolean, Number>>> booleanTestMap){
+        Map<String, Map<Boolean, Number>> varMap = booleanTestMap.getOrDefault(
+                type.name(), new HashMap<>());
+        boolean state = (boolean) type.getTestVar(this);
+        for (int i = 0; i < names.length; i++){
+            Map<Boolean, Number> testMap = varMap.getOrDefault(names[i],
+                    new HashMap<>());
+            testMap.put(state, numbers[i]);
+            varMap.put(names[i], testMap);
+        }
+        booleanTestMap.put(type.name(), varMap);
     }
+    public void putNumberMap(Map<String, Map<String, Map<Number, Number>>> numberTestMap){
+        Map<String, Map<Number, Number>> varMap = numberTestMap.getOrDefault(
+                type.name(), new HashMap<>());
+        Number n = (Number) type.getTestVar(this);
+        for (int i = 0; i < names.length; i++){
+            Map<Number, Number> testMap = varMap.getOrDefault(names[i],
+                    new HashMap<>());
+            testMap.put(n, numbers[i]);
+            varMap.put(names[i], testMap);
+        }
+        numberTestMap.put(type.name(), varMap);
+    }
+    public void putArrayMap(Map<String, Map<String, Map<double[], Number>>> numberTestMap){
+        Map<String, Map<double[], Number>> varMap = numberTestMap.getOrDefault(
+                type.name(), new HashMap<>());
+        double[] arr = (double[]) type.getTestVar(this);
+        for (int i = 0; i < names.length; i++){
+            Map<double[], Number> testMap = varMap.getOrDefault(names[i],
+                    new HashMap<>());
+                testMap.put(arr, numbers[i]);
+            varMap.put(names[i], testMap);
+        }
+        numberTestMap.put(type.name(), varMap);
+    }
+    public enum TestType{
+        RANDOM_CROSSOVER{
+            @Override
+            public List<MarsLanderStat> getTest(List<MarsLanderStat> startingList) {
+                return getRandomDuplTests(startingList);
+            }
 
+            @Override
+            public Object getTestVar(MarsLanderStat ms) {
+                return ms.RANDOM_CROSSOVER_ON_DUPLICATE;
+            }
+
+        }, 
+        REMOVE_DUPLICATES {
+            @Override
+            public List<MarsLanderStat> getTest(List<MarsLanderStat> startingList) {
+                return getRemoveDuplTests(startingList);
+            }
+
+            @Override
+            public Object getTestVar(MarsLanderStat ms) {
+                return ms.REMOVE_DUPLICATES;
+            }
+
+        }, 
+        ELITISM_PERCENTAGE {
+            @Override
+            public List<MarsLanderStat> getTest(List<MarsLanderStat> startingList) {
+                return getElitismChanceTests(startingList);
+            }
+
+            @Override
+            public Object getTestVar(MarsLanderStat ms) {
+                return ms.ELITISM_PERCENTAGE;
+            }
+
+        }, DESIRED_POPULATION_SIZE {
+            @Override
+            public List<MarsLanderStat> getTest(List<MarsLanderStat> startingList) {
+                return getPopSizeTests(startingList);
+            }
+
+            @Override
+            public Object getTestVar(MarsLanderStat ms) {
+                return ms.DESIRED_POPULATION_SIZE;
+            }
+
+
+        }, CROSSOVER_PERCENTAGE {
+            @Override
+            public List<MarsLanderStat> getTest(List<MarsLanderStat> startingList) {
+                return getCrossoverChanceTests(startingList);
+            }
+
+            @Override
+            public Object getTestVar(MarsLanderStat ms) {
+                return ms.CROSSOVER_PERCENTAGE;
+            }
+
+
+        }, MUTATION_CHANCE {
+            @Override
+            public List<MarsLanderStat> getTest(List<MarsLanderStat> startingList) {
+                return getMutationChanceTests(startingList);
+            }
+
+            @Override
+            public Object getTestVar(MarsLanderStat ms) {
+                return ms.MUTATION_CHANCE;
+            }
+
+
+        },
+        WEIGHTS {
+            @Override
+            public List<MarsLanderStat> getTest(List<MarsLanderStat> startingList) {
+                return getWeightTests(startingList);
+            }
+
+            @Override
+            public Object getTestVar(MarsLanderStat ms) {
+                return ms.GENE_WEIGHTS;
+            }
+
+
+        };
+        
+        
+        public abstract List<MarsLanderStat> getTest(List<MarsLanderStat> startingList);
+        public abstract Object getTestVar(MarsLanderStat ms);
+    }
 }

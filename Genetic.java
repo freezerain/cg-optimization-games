@@ -2,14 +2,8 @@ import java.awt.geom.Line2D;
 import java.awt.geom.Point2D;
 import java.util.*;
 
-class Genetic {
+public class Genetic {
     private static final Random R = new Random();
-    Settings settings = new Settings();
-    
-    public void startEvolving(){
-        Solver solver = new Solver(settings);
-        List<Individual> population = new ArrayList<>();
-    }
 
     public enum CrossoverType {
         CONTINUOUS {
@@ -49,8 +43,8 @@ class Genetic {
                     childList.add(p2);
                     return;
                 }
-                int crossoverIndex = (int) (R.nextDouble() *
-                                            Math.min(genes1.size(), genes2.size()));
+                int crossoverIndex = (int) (R.nextDouble() * Math.min(genes1.size(), genes2.size()));
+                int max = Math.max(genes1.size(), genes2.size());
                 List<Gene> newGenes1 = new ArrayList<>(genes1.subList(0, crossoverIndex));
                 newGenes1.addAll(new ArrayList<>(genes2.subList(crossoverIndex, genes2.size())));
                 List<Gene> newGenes2 = new ArrayList<>(genes2.subList(0, crossoverIndex));
@@ -63,7 +57,7 @@ class Genetic {
         public abstract void doCrossover(List<Individual> childList, Individual p1, Individual p2);
     }
 
-    public enum SelectType {
+    public static enum SelectType {
         TOURNAMENT {
             @Override
             public Individual doSelect(List<Individual> pop, int var) {
@@ -99,7 +93,7 @@ class Genetic {
     }
     
     public static class State {
-        public double distanceToLanding = 0.0;
+        public double distanceToLanding = Double.MAX_VALUE;
         double x;
         double y;
         double hS;
@@ -109,6 +103,7 @@ class Genetic {
         int power;
         boolean isLanded = false;
         boolean isSafeLanded = false;
+        boolean isOutOfBounds = false;
 
         public State(double x, double y, double hSpeed, double vSpeed, int fuel, int angle,
                          int power) {
@@ -132,26 +127,26 @@ class Genetic {
             isLanded               = gs.isLanded;
             isSafeLanded           = gs.isSafeLanded;
             distanceToLanding = gs.distanceToLanding;
+            isOutOfBounds = gs.isOutOfBounds;
         }
 
         public State simulate(Settings s, Gene gene) {
             State newState = new State(this);
-            int dPower = gene.getValues()[0];
-            int dAngle = gene.getValues()[1];
+            int dAngle = gene.getValues()[0];
+            int dPower = gene.getValues()[1];
             if (dPower != 0) newState.power = Math.max(0, Math.min(4, power + dPower));
             if (dAngle != 0) newState.angle = Math.max(-90, Math.min(90, angle + dAngle));
-            int time = gene.getValues()[2];
-            
-            int counter = time;
-            while(counter>0 || isLanded) {
+
+            int counter = gene.getValues()[2];
+            while(counter>0 && (!newState.isLanded) && (!newState.isOutOfBounds)) {
                 counter--;
                 double oldX = newState.x;
                 double oldY = newState.y;
                 newState.move();
-                if (newState.fuel <= 0 || newState.isOutOfBounds() || newState.isIntersect(s, oldX, oldY)){
+                if (newState.isIntersect(s, oldX, oldY)){
                     newState.isLanded     = true;
-                    newState.isSafeLanded = (!newState.isOutOfBounds()) && newState.fuel >= 0 && newState.isSafeLand(s);
-                }
+                    newState.isSafeLanded = newState.isSafeLand(s);
+                }else if(newState.isOutOfBounds()) newState.isOutOfBounds = true;
             }
             if(counter!=0) gene.getValues()[2] -=counter;
             return newState;
@@ -172,7 +167,7 @@ class Genetic {
                                     new Point2D.Double(landscape[i + 2], landscape[i + 3])));
                     distanceToLanding = getDistance(intersection);*/
                     distanceToLanding = x<settings.landingSite[0]? settings.landingSite[0]-x 
-                            : x>settings.landingSite[1]? x-settings.landingSite[1] : 0;
+                            : x>settings.landingSite[2]? x-settings.landingSite[2] : 0;
                     return true;
                 }
             }
@@ -227,12 +222,13 @@ class Genetic {
         }
 
         private boolean isSafeLand(Settings s) {
-            if (x > s.landingSite[1] || x < s.landingSite[0] || angle != 0 || Math.abs(vS) > 40 ||
+            if (x > s.landingSite[2] || x < s.landingSite[0] || angle != 0 || Math.abs(vS) > 40 ||
                 Math.abs(hS) > 20) return false;
             return true;
         }
 
         private void move() {
+            power = Math.min(power, fuel);
             double radians = Math.toRadians(angle);
             double xAcc = Math.sin(radians) * power;
             double yAcc = (Math.cos(radians) * power - 3.711);
@@ -259,6 +255,7 @@ class Genetic {
             if (angle != state.angle) return false;
             if (power != state.power) return false;
             if (isLanded != state.isLanded) return false;
+            if (isOutOfBounds != state.isOutOfBounds) return false;
             return isSafeLanded == state.isSafeLanded;
         }
 
@@ -281,6 +278,7 @@ class Genetic {
             result = 31 * result + power;
             result = 31 * result + (isLanded ? 1 : 0);
             result = 31 * result + (isSafeLanded ? 1 : 0);
+            result = 31 * result + (isOutOfBounds ? 1 : 0);
             return result;
         }
 
@@ -350,11 +348,18 @@ class Genetic {
 
         public void simulate(State state, Settings settings) {
             int i = 0;
-            while(states.size()<= settings.INDIVIDUAL_LENGTH && !state.isLanded){
-                state = state.simulate(settings,i < genes.size()? genes.get(i) : new Gene());
+            states = new ArrayList<>();
+            ArrayList<Gene> newGenes = new ArrayList<>();
+            while(states.size()<= settings.INDIVIDUAL_LENGTH && (!state.isLanded) && (!state.isOutOfBounds)){
+                Gene g;
+                if(i < this.genes.size()) g = this.genes.get(i);
+                else g = new Gene();
+                state = state.simulate(settings,g);
                 states.add(state);
+                newGenes.add(g);
                 i++;
             }
+            genes = newGenes;
             fitness = calculateFitness( settings);
         }
 
@@ -366,22 +371,32 @@ class Genetic {
             int angle = Math.abs(lastState.angle);
             int fuel = Math.abs(lastState.fuel);
             //Normalize to 0-100 range by dividing current / max
-            double normDistance = 100.0 - distance / 7000.0 * 100.0;
+            double normDistance = 10.0 - ((distance / 7000.0) * 10.0);
             //Make score exponential
             normDistance *= normDistance;
-            double normHS = 100.0 - (hSpeed < 20.0 ? 0 : hSpeed) / 500.0 * 100.0;
+            normDistance *= normDistance;
+            double normHS = 10.0 - (((hSpeed < 20.0 ? 0 : hSpeed) / 500.0) * 10.0);
+            //double normHS = 10.0 - ((hSpeed / 500.0) * 10.0);
             normHS *= normHS;
-            double normVS = 100.0 - (vSpeed < 40.0 ? 0 : vSpeed) / 500.0 * 100.0;
-            normHS *= normVS;
-            double normAngle = 100.0 - angle / 90.0 * 100.0;
+            normHS *= normHS;
+            double normVS = 10.0 - (((vSpeed < 40.0 ? 0 : vSpeed) / 500.0) * 10.0);
+            //double normVS = 10.0 - (( vSpeed / 500.0) * 10.0);
+            normVS *= normVS;
+            normVS *= normVS;
+            double normAngle = 10.0 - ((angle / 90.0) * 10.0);
             normAngle *= normAngle;
-            double normFuel = fuel / (double) settings.startingFuel * 100.0;
+            normAngle *= normAngle;
+            double normFuel = (fuel / (double) settings.startingFuel) * 10.0;
+            normFuel *= normFuel;
             normFuel *= normFuel;
 
             //Get fitness
             double fitnessScore = 0;
-            fitnessScore = normDistance *settings.GENE_WEIGHTS[0] + normHS * settings.GENE_WEIGHTS[1] +
-                           normVS * settings.GENE_WEIGHTS[2] + normAngle * settings.GENE_WEIGHTS[3];
+            fitnessScore += normDistance * settings.GENE_WEIGHTS[0];
+            fitnessScore += normHS * settings.GENE_WEIGHTS[1];
+            fitnessScore += normVS * settings.GENE_WEIGHTS[2];
+            fitnessScore += normAngle * settings.GENE_WEIGHTS[3];
+            
             //Add fuel to score only after safe landing
             if (lastState.isSafeLanded) fitnessScore += normFuel * settings.GENE_WEIGHTS[4];
             return fitnessScore;
@@ -395,12 +410,13 @@ class Genetic {
     }
 
     public static class Gene {
-        private int[] vars;
+        private final int[] vars;
 
         public Gene() {
             vars = new int[3];
             int angleDir = Genetic.R.nextInt(3);
             vars[0] = angleDir == 0 ? -15 : angleDir == 1 ? 0 : 15;
+            //vars[0] = Genetic.R.nextInt(31)-15;
             vars[1] = Genetic.R.nextInt(3) - 1;
            // vars[2] = Genetic.R.nextInt(10);
             vars[2] = 1;
@@ -452,15 +468,13 @@ class Genetic {
                 elite.addAll(newPop);
                 newPop = elite;
                 newPop = resizeList(newPop);
-                for (Individual i : newPop){
-                    i.simulate(state, settings);
-                }
+                for (Individual i : newPop) i.simulate(state, settings);
                 if (settings.REMOVE_DUPLICATES) newPop = new ArrayList<>(new HashSet<>(newPop));
                 pop = newPop;
                 pop.sort(Comparator.comparingDouble(Individual::getFitness).reversed());
                 counter++;
             }
-            crossovers[0] = counter;
+            crossovers[0] += counter;
             if (settings.REMOVE_STEP) removeFirstStep(pop);
             return pop;
         }
@@ -521,24 +535,46 @@ class Genetic {
     }
 
     public static class Settings {
-        public Genetic.SelectType selectType = Genetic.SelectType.TOURNAMENT;
-        public Genetic.CrossoverType crossoverType = Genetic.CrossoverType.POINT;
+        public Genetic.SelectType selectType = SelectType.TOURNAMENT;
+        public Genetic.CrossoverType crossoverType = CrossoverType.POINT;
         public boolean RANDOM_CROSSOVER_ON_DUPLICATE = true;
         public boolean REMOVE_DUPLICATES = false;
-        public boolean REMOVE_STEP = true;
+        public boolean REMOVE_STEP = false;
         public int TOURNAMENT_SIZE = 4;
-        public double ELITISM_PERCENTAGE = 0.3;
+        public double ELITISM_PERCENTAGE = 0.2;
         public int INDIVIDUAL_LENGTH = 200;
         public int DESIRED_POPULATION_SIZE = 50;
         public double CROSSOVER_PERCENTAGE = 0.8;
         public double MUTATION_CHANCE = 0.02;
-        public double[] GENE_WEIGHTS = new double[]{0.2, 0.3, 0.4, 0.1, 1};
+        public double[] GENE_WEIGHTS = new double[]{0.1, 0.3, 0.4, 0.1, 1};
         public int startingFuel = 3000;
         public long EVALUATE_TIME = 90;
-        public double[] landscape ={0.0, 100.0, 1000.0, 500.0, 1500.0,
-            1500.0, 3000.0, 1000.0, 4000.0, 150.0, 5500.0, 150.0, 6999.0, 800.0         };
-        public double[] landingSite = {0.0, 500.0, 1000.0, 500.0};
+        public double[] landscape;
+        public double[] landingSite;
+
+        public Settings() {
+        }
+
+        public Settings(Settings s) {
+            this.selectType                    = s.selectType;
+            this.crossoverType                 = s.crossoverType;
+            this.RANDOM_CROSSOVER_ON_DUPLICATE = s.RANDOM_CROSSOVER_ON_DUPLICATE;
+            this.REMOVE_DUPLICATES             = s.REMOVE_DUPLICATES;
+            this.REMOVE_STEP                   = s.REMOVE_STEP;
+            this.TOURNAMENT_SIZE               = s.TOURNAMENT_SIZE;
+            this.ELITISM_PERCENTAGE            = s.ELITISM_PERCENTAGE;
+            this.INDIVIDUAL_LENGTH             = s.INDIVIDUAL_LENGTH;
+            this.DESIRED_POPULATION_SIZE       = s.DESIRED_POPULATION_SIZE;
+            this.CROSSOVER_PERCENTAGE          = s.CROSSOVER_PERCENTAGE;
+            this.MUTATION_CHANCE               = s.MUTATION_CHANCE;
+            this.GENE_WEIGHTS                  = s.GENE_WEIGHTS;
+            this.startingFuel                  = s.startingFuel;
+            this.EVALUATE_TIME                 = s.EVALUATE_TIME;
+            this.landscape                     = s.landscape;
+            this.landingSite                   = s.landingSite;
+        }
     }
+    
 }
 
 

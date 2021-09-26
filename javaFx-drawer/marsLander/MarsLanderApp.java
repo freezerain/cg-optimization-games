@@ -8,14 +8,17 @@ import javafx.geometry.Insets;
 import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.canvas.Canvas;
+import javafx.scene.control.Tooltip;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
+import javafx.scene.shape.Circle;
 import javafx.scene.shape.Polyline;
 import javafx.scene.text.Font;
 import javafx.scene.text.Text;
 import javafx.stage.Stage;
+import javafx.util.Duration;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -122,10 +125,15 @@ public class MarsLanderApp extends Application {
 
     private void buildPaths(List<LanderPath> landerPath) {
         double maxScore = landerPath.stream()
-                .filter(l -> !l.isSafeLanded)
+                .filter(l -> l.isLanded && !l.isSafeLanded)
                 .mapToDouble(l -> l.score)
                 .max()
                 .orElse(1.0);
+        double minScore = landerPath.stream()
+                .filter(l -> l.isLanded && !l.isSafeLanded)
+                .mapToDouble(l -> l.score)
+                .min()
+                .orElse(0.0);
         List<Node> newPath = new ArrayList<>();
         for (LanderPath lp : landerPath){
             double[] path = lp.landerList.stream()
@@ -135,24 +143,26 @@ public class MarsLanderApp extends Application {
             if (lp.isSafeLanded) polyline.setStroke(Color.WHITE);
             else if (!lp.isLanded) polyline.setStroke(Color.DARKRED);
             else if (lp.score < 0) polyline.setStroke(Color.DIMGREY);
-            else polyline.setStroke(Color.color(0.0, lp.score / maxScore, 0.0));
-            /*for (Lander lander : lp.landerList){
-                Circle c = new Circle();
-                c.setRadius(5);
-                c.setFill(Color.color(0.35,0.35,0.35));
-                c.setLayoutX(lander.x / 4.0);
-                c.setLayoutY(750.0 - lander.y / 4.0);
-                String tp = "x: " + lander.x + " y: " + lander.y + "\n" +
-                            "hS: " + lander.hSpeed + " vS: " + lander.vSpeed + "\n" +
-                            "angle: " + lander.angle + " power: " + lander.power + " fuel: " + 
-                            lander.fuel + "\n" + "isLanded: " + lander.isLanded  + "isSafe: " + 
-                            lander.isSafeLanded;
-                 Tooltip tooltip = new Tooltip(tp);
-                 tooltip.setShowDelay(Duration.millis(10));
-                 tooltip.setShowDuration(Duration.seconds(30));
-                Tooltip.install(c, tooltip);
-                newPath.add(c);
-            }*/
+            else polyline.setStroke(
+                        Color.color(0.0, (lp.score - minScore) / (maxScore - minScore), 0.0));
+
+
+            Circle c = new Circle();
+            c.setRadius(5);
+            c.setFill(Color.color(0.35, 0.35, 0.35));
+            c.setLayoutX(lp.lastState.x / 4.0);
+            c.setLayoutY(750.0 - lp.lastState.y / 4.0);
+            String tp = "x: " + lp.lastState.x + " y: " + lp.lastState.y + "\n" + "hS: " +
+                        lp.lastState.hSpeed + " vS: " + lp.lastState.vSpeed + "\n" + "angle: " +
+                        lp.lastState.angle + " power: " + lp.lastState.power + " fuel: " +
+                        lp.lastState.fuel + "\n" + "isLanded: " + lp.lastState.isLanded +
+                        " isSafe: " + lp.lastState.isSafeLanded + "\nfitness: " + lp.score;
+            Tooltip tooltip = new Tooltip(tp);
+            tooltip.setShowDelay(Duration.millis(10));
+            tooltip.setShowDuration(Duration.seconds(30));
+            Tooltip.install(c, tooltip);
+            newPath.add(c);
+
             newPath.add(polyline);
         }
         System.out.println("polyline size:" + newPath.size());

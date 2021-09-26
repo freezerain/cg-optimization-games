@@ -53,7 +53,6 @@ public class GraphDrawerApp extends Application {
             stage.show();
         });
     }
-    
     private LineChart<Number, Number> createMultiLineChart(String title, Map<double[], Number> varMap){
         NumberAxis xAxis = new NumberAxis();
         NumberAxis yAxis = new NumberAxis();
@@ -73,6 +72,7 @@ public class GraphDrawerApp extends Application {
         lineChart.getData().addAll(seriesList);
         return lineChart;
     }
+    
     
     public void showLineChart(String testName, Map<String, Map<Number, Number>> data){
         TilePane pane = new TilePane();

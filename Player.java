@@ -1,572 +1,584 @@
-import java.awt.geom.Line2D;
-import java.awt.geom.Point2D;
+
 import java.util.*;
 
 class Player {
-    public static GeneticAlgorithm GE;
-    private static double[] landscape;
-    private static double safeAreaBegin = -1;
-    private static double safeAreaEnd = -1;
-    private static int STARTING_FUEL = 3000;
+    static final int[] FIBONACCI = {1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233, 377, 610, 987,
+            1597, 2584, 4181, 6765, 10946, 17711, 28657, 46368, 75025, 121393, 196418, 317811,
+            514229, 832040, 1346269, 2178309, 3524578, 5702887, 9227465, 14930352, 24157817,
+            39088169, 63245986, 102334155};
 
-    public static void main(String args[]) {
+    public static void main(String[] args) {
         Scanner in = new Scanner(System.in);
-        int N = in.nextInt();
-        landscape = new double[N * 2];
-        double lastX = -1;
-        double lastY = -1;
-        for (int i = 0; i < N * 2; i += 2){
-            int x = in.nextInt();
-            int y = in.nextInt();
-            if (safeAreaBegin < 0 && y == lastY && x - lastX >= 1000){
-                safeAreaBegin = lastX + 100;
-                safeAreaEnd   = x - 100;
-            }
-            lastX            = x;
-            lastY            = y;
-            landscape[i]     = x;
-            landscape[i + 1] = y;
-        }
-        System.err.println();
-        Player p = new Player();
-        GE = new GeneticAlgorithm(p);
+        Genetic.Settings settings = new Genetic.Settings();
+        Genetic.Solver solver = new Genetic.Solver(settings);
+        List<Genetic.Individual> pop = new ArrayList<>();
         while (true) {
-            long t = System.currentTimeMillis();
-            GameState gameState = new GameState(in.nextInt(), in.nextInt(), in.nextInt(),
-                    in.nextInt(), in.nextInt(), in.nextInt(), in.nextInt(), landscape,
-                    safeAreaBegin, safeAreaEnd);
-            if (STARTING_FUEL == 3000) STARTING_FUEL = gameState.fuel;
-            List<Individual> evaluate = GE.evaluate(gameState, t, new int[1]);
-            if ((!evaluate.isEmpty()) && evaluate.get(0).gameStateList.get(
-                    evaluate.get(0).gameStateList.size() - 1).isSafeLanded){
-                Individual individual = evaluate.get(0);
-                GameState nextGS = individual.gameStateList.get(0);
-                System.out.println((nextGS.angle) + " " + (nextGS.power));
-            } else {
-                
-                int angle = (gameState.x<safeAreaBegin? -20 : gameState.x>safeAreaEnd? 20 : 0);
-                angle = gameState.hSpeed>20? 20 : gameState.hSpeed<-20? -20 : angle;
-                
-                System.out.println(angle + " " + (angle==0?3:4));
+            Actor player = new Actor(-1, in.nextInt(), in.nextInt());
+            List<Actor> humans = new ArrayList<>();
+            List<Actor> zombies = new ArrayList<>();
+            int humanCount = in.nextInt();
+            for (int i = 0; i < humanCount; i++)
+                 humans.add(new Actor(in.nextInt(), in.nextInt(), in.nextInt()));
+            int zombieCount = in.nextInt();
+            for (int i = 0; i < zombieCount; i++){
+                zombies.add(new Actor(in.nextInt(), in.nextInt(), in.nextInt()));
+                in.nextInt();
+                in.nextInt();
             }
+            System.err.println("Player: " + player.x + ", " + player.y);
+            System.err.print("Humans: ");
+            for (Actor human : humans){
+                System.err.print(human.x+","+human.y+",");
+            }
+            System.err.println();
+            System.err.print("Zombies: ");
+            for (Actor human : zombies){
+                System.err.print(human.x+","+human.y+",");
+            }
+            System.err.println();
+            
+            
+            
+            
+            int[] counter = new int[1];
+            Genetic.State startState = new Genetic.State(player, humans, zombies);
+            pop = solver.evolve(pop, startState, System.currentTimeMillis(),counter);
+            System.err.println("crossovers: "+ counter[0]);
+            Genetic.Individual bestInd = pop.get(0);
+            System.err.println("ind: " + bestInd.fitness);
+            int nextX;
+            int nextY;
+            if (bestInd.state.humans.isEmpty()){
+                Actor closestHuman = startState.humans.get(0);
+                int distance = Integer.MAX_VALUE;
+                humanLoop:
+                for (Actor h : startState.humans){
+                    int distanceToPlayer = (int) Math.sqrt(startState.player.getDistanceSqrt(h));
+                    distanceToPlayer-=2000;
+                    int turnsToPlayer = distanceToPlayer/1000 + (distanceToPlayer%1000!=0? 1 : 0);
+                    for (Actor z : startState.zombies){
+                        int distanceSqrt = (int) Math.sqrt(h.getDistanceSqrt(z));
+                        int turnsToZombie = distanceSqrt / 400 + (distanceSqrt%400!=0? 1 : 0);
+                        if(turnsToZombie<turnsToPlayer) continue humanLoop;
+                    }
+                    if(turnsToPlayer<distance){
+                        distance = turnsToPlayer;
+                        closestHuman = h;
+                    }
+                }
+                nextX = closestHuman.x;
+                nextY = closestHuman.y;
+            }else{
+
+                Genetic.Gene nextGene = bestInd.getGenes().get(0);
+                nextX = Math.max(0,
+                        (int) (bestInd.state.player.x + nextGene.getValues()[0] * Math.cos(nextGene.getValues()[1] * 22.5)));
+                nextY = Math.max(0,
+                        (int) (bestInd.state.player.y + nextGene.getValues()[0] * Math.sin(nextGene.getValues()[1] * 22.5)));
+            }
+            System.out.println(nextX + " " + nextY);
         }
     }
     
-    double[] getNearestLandscapeSegment(double x) {
-        for (int i = 2; i < landscape.length; i += 2){
-            if (landscape[i] >= x)
-                return new double[]{landscape[i - 2], landscape[i - 1], landscape[i],
-                        landscape[i + 1]};
-        }
-        return new double[]{0.0, 0.0, 0.0, 0.0};
-    }
+    static class Actor {
+        int id;
+        int x;
+        int y;
 
-    void simulationInit(double[] landscape) {
-        GE             = new GeneticAlgorithm(this);
-        this.landscape = landscape;
-        double lastX = -1;
-        double lastY = -1;
-        for (int i = 0; i < landscape.length; i += 2){
-            if (safeAreaBegin < 0 && landscape[i + 1] == lastY && landscape[i] - lastX >= 1000){
-                safeAreaBegin = lastX + 100;
-                safeAreaEnd   = landscape[i] - 100;
+        public Actor(int id, int x, int y) {
+            this.id = id;
+            this.x  = x;
+            this.y  = y;
+        }
+
+        public Actor(Actor a) {
+            this.id = a.id;
+            this.x  = a.x;
+            this.y  = a.y;
+        }
+
+        public int getDistanceSqrt(Actor target) {
+            return (target.x - x) * (target.x - x) + (target.y - y) * (target.y - y);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Actor actor = (Actor) o;
+            return id == actor.id;
+        }
+
+        @Override
+        public int hashCode() {
+            return id;
+        }
+
+        public void moveToNext(int nextX, int nextY, int movementDistance) {
+            double vectorX = nextX - x;
+            double vectorY = nextY - y;
+            double normaliser = Math.max(Math.abs(vectorX), Math.abs(vectorY));
+            int newX = (int) (x + (vectorX / normaliser * movementDistance));
+            int newY = (int) (y + (vectorY / normaliser * movementDistance));
+            x = x < nextX ? Math.min(nextX, newX) : Math.max(nextX, newX);
+            y = y < nextY ? Math.min(nextY, newY) : Math.max(nextY, newY);
+        }
+    }
+    
+    static class Genetic {
+        private static final Random R = new Random();
+
+        enum CrossoverType {
+            CONTINUOUS {
+                @Override
+                public void doCrossover(List<Individual> childList, Individual p1, Individual p2) {
+                    double crossoverPoint = R.nextDouble();
+                    double crossoverRest = 1.0 - crossoverPoint;
+                    List<Gene> genes1 = p1.getGenes();
+                    List<Gene> genes2 = p2.getGenes();
+                    List<Gene> newGenes1 = new ArrayList<>(genes1.size());
+                    List<Gene> newGenes2 = new ArrayList<>(genes2.size());
+                    int lastCrossover = Math.min(genes1.size(), genes2.size());
+                    for (int j = 0; j < lastCrossover; j++){
+                        Gene gene1 = genes1.get(j);
+                        Gene gene2 = genes2.get(j);
+                        int[] vars1 = gene1.getValues();
+                        int[] vars2 = gene2.getValues();
+                        int[] newVars1 = new int[vars1.length];
+                        int[] newVars2 = new int[vars1.length];
+                        for (int i = 0; i < vars1.length; i++){
+                            newVars1[i] = (int) (crossoverPoint * vars1[i] +
+                                                 crossoverRest * vars2[i]);
+                            newVars2[i] = (int) (crossoverRest * vars1[i] +
+                                                 crossoverPoint * vars2[i]);
+                        }
+                        newGenes1.add(new Gene(newVars1));
+                        newGenes2.add(new Gene(newVars2));
+                    }
+                    childList.add(new Individual(newGenes1));
+                    childList.add(new Individual(newGenes2));
+                }
+            }, POINT {
+                @Override
+                public void doCrossover(List<Individual> childList, Individual p1, Individual p2) {
+                    List<Gene> genes1 = p1.getGenes();
+                    List<Gene> genes2 = p2.getGenes();
+                    if (genes1.size() < 2 || genes2.size() < 2){
+                        childList.add(p1);
+                        childList.add(p2);
+                        return;
+                    }
+                    int crossoverIndex = (int) (R.nextDouble() *
+                                                Math.min(genes1.size(), genes2.size()));
+                    int max = Math.max(genes1.size(), genes2.size());
+                    List<Gene> newGenes1 = new ArrayList<>(genes1.subList(0, crossoverIndex));
+                    newGenes1.addAll(
+                            new ArrayList<>(genes2.subList(crossoverIndex, genes2.size())));
+                    List<Gene> newGenes2 = new ArrayList<>(genes2.subList(0, crossoverIndex));
+                    newGenes1.addAll(
+                            new ArrayList<>(genes1.subList(crossoverIndex, genes1.size())));
+                    childList.add(new Individual(newGenes1));
+                    childList.add(new Individual(newGenes2));
+                }
+            };
+
+            public abstract void doCrossover(List<Individual> childList, Individual p1,
+                                             Individual p2);
+        }
+
+        enum SelectType {
+            TOURNAMENT {
+                @Override
+                public Individual doSelect(List<Individual> pop, int var) {
+                    Individual bestInTournament = null;
+                    for (int j = 0; j < var; j++){
+                        int index = R.nextInt(pop.size());
+                        Individual ind = pop.get(index);
+                        if (bestInTournament == null || ind.getFitness() >
+                                                        bestInTournament.getFitness()) bestInTournament = ind;
+                    }
+                    return bestInTournament;
+                }
+            }, WHEEL {
+                @Override
+                public Individual doSelect(List<Individual> pop, int var) {
+                    double fitnessSum = 0.0;
+                    for (Individual i : pop) fitnessSum += i.getFitness();
+                    double[] probabilities = new double[pop.size()];
+                    double previousProbability = 0.0;
+                    for (int i = 0; i < pop.size(); i++){
+                        Individual ind = pop.get(i);
+                                           previousProbability += ind.getFitness() / fitnessSum;
+                        probabilities[i] = previousProbability;
+                    }
+                    double selectProbability = Genetic.R.nextDouble();
+                    for (int i = 0; i < probabilities.length; i++)
+                        if (selectProbability < probabilities[i]) return pop.get(i);
+                    return pop.get(0);
+                }
+            };
+
+            public abstract Individual doSelect(List<Individual> pop, int var);
+        }
+
+        public static class State {
+            Actor player;
+            List<Actor> humans;
+            List<Actor> zombies;
+            long score = 0;
+
+            public State(Actor player, List<Actor> humans, List<Actor> zombies) {
+                this.player = new Actor(player);
+                this.humans = new ArrayList<>();
+                humans.forEach(h -> this.humans.add(new Actor(h)));
+                this.zombies = new ArrayList<>();
+                zombies.forEach(h -> this.zombies.add(new Actor(h)));
             }
-            lastX = landscape[i];
-            lastY = landscape[i + 1];
+
+            public State(State gs) {
+                this(gs.player, gs.humans, gs.zombies);
+                this.score = gs.score;
+            }
+
+            public void simulate(Gene gene) {
+                List<Actor> humanKillList = moveZombies();
+                movePlayer(gene.getValues()[0], gene.getValues()[1]);
+                killZombies();
+                killHumans(humanKillList);
+            }
+
+            private void movePlayer(int radius, int angle) {
+                double vectorX = radius * Math.cos(angle * 22.5);
+                double vectorY = radius * Math.sin(angle * 22.5);
+                int nextX = Math.max(0, (int) (player.x + vectorX));
+                int nextY = Math.max(0, (int) (player.y + vectorY));
+                player.moveToNext(nextX, nextY, 1000);
+            }
+
+            private void killHumans(List<Actor> humanKillList) {
+                for (Actor a : humanKillList)
+                    humans.remove(a);
+            }
+
+            private void killZombies() {
+                int fibSum = 0;
+                int combo = 0;
+                for (int i = zombies.size() - 1; i >= 0; i--){
+                    if (player.getDistanceSqrt(zombies.get(i)) <= 4000000){
+                        if (combo < 39) fibSum += FIBONACCI[combo++];
+                        zombies.remove(i);
+                    }
+                }
+                score += 10 * (humans.size() * humans.size()) * fibSum;
+            }
+            private List<Actor> moveZombies() {
+                ArrayList<Actor> humanKillList = new ArrayList<>();
+                for (Actor z : zombies){
+                    Actor closest = player;
+                    int distance = player.getDistanceSqrt(z);
+                    for (Actor h : humans){
+                        int hDis = z.getDistanceSqrt(h);
+                        if (hDis < distance){
+                            distance = hDis;
+                            closest  = h;
+                        }
+                    }
+                    if (closest.id != player.id && distance <= 160000) humanKillList.add(closest);
+                    z.moveToNext(closest.x, closest.y, 400);
+                }
+                return humanKillList;
+            }
+
+            @Override
+            public boolean equals(Object o) {
+                if (this == o) return true;
+                if (o == null || getClass() != o.getClass()) return false;
+
+                State state = (State) o;
+
+                if (score != state.score) return false;
+                if (!player.equals(state.player)) return false;
+                if (!humans.equals(state.humans)) return false;
+                return zombies.equals(state.zombies);
+            }
+
+            @Override
+            public int hashCode() {
+                int result = player.hashCode();
+                result = 31 * result + humans.hashCode();
+                result = 31 * result + zombies.hashCode();
+                result = 31 * result + (int) (score ^ (score >>> 32));
+                return result;
+            }
         }
-    }
+       
+        public static class Individual {
+            List<Gene> genes = new ArrayList<>();
+            List<State> states = new ArrayList<>();
+            State state;
+            double fitness;
+            int zombiesMax;
+            int humansMax;
 
-    static class GeneticAlgorithm {
-        private final Random r = new Random();
-        public boolean IS_TOURNAMENT_SELECT = true;
-        public boolean IS_POINT_CROSSOVER = true;
-        public boolean RANDOM_CROSSOVER_ON_DUPLICATE = true;
-        public boolean REMOVE_DUPLICATES = false;
-        public boolean REMOVE_STEP = true;
-        public int TOURNAMENT_SIZE = 4;
-        public double ELITISM_PERCENTAGE = 0.3;
-        public int INDIVIDUAL_LENGTH = 200;
-        public int DESIRED_POPULATION_SIZE = 250;
-        public double CROSSOVER_PERCENTAGE = 0.7;
-        public double MUTATION_CHANCE = 0.02;
-        public double[] GENE_WEIGHTS = new double[]{0.2, 0.3, 0.4, 0.1, 1};
-        public long EVALUATE_TIME = 90;
-        Player p;
-        private List<Individual> pop = new ArrayList<>();
+            public Individual(List<Gene> genes) {
+                this.genes = genes;
+            }
 
-        public GeneticAlgorithm(Player p) {
-            this.p = p;
+            public Individual() {
+
+            }
+
+            public void removeFirstStep() {
+                if (!genes.isEmpty()) {
+                    genes.remove(0);
+                }
+            }
+
+            List<Gene> getGenes() {
+                return genes;
+            }
+
+            double getFitness() {
+                return fitness;
+            }
+            
+            public void simulate(State state, Settings settings) {
+                state = new State(state);
+                zombiesMax = state.zombies.size();
+                humansMax = state.humans.size();
+                int i = 0;
+                ArrayList<Gene> newGenes = new ArrayList<>();
+                states = new ArrayList<>();
+                while (newGenes.size() <= settings.INDIVIDUAL_LENGTH && (!state.humans.isEmpty()) &&
+                       (!state.zombies.isEmpty())) {
+                    Gene g;
+                    if (i < this.genes.size()) g = this.genes.get(i);
+                    else g = new Gene();
+                    state.simulate(g);
+                    states.add(new State(state));
+                    newGenes.add(g);
+                    i++;
+                }
+                this.state = state;
+                genes   = newGenes;
+                fitness = calculateFitness(settings);
+            }
+
+            private double calculateFitness(Settings settings) {
+                if(state.score > 100000000L) System.out.println("LONG ERROR!!!! Overflow score");
+                double score = (((double)state.score) / 100000000L) * 10.0;
+                score *=score;
+                score *=score;
+                double humansAlive = (((double)state.humans.size()) / humansMax) * 10.0;
+                humansAlive *=humansAlive;
+                humansAlive *=humansAlive;
+              /*  double zombiesAlive = 10.0 - ((((double)state.zombies.size()) / zombiesMax) * 10.0);
+                zombiesAlive *=zombiesAlive;
+                zombiesAlive *=zombiesAlive;*/
+                double pathLength = 10.0 - ((((double)genes.size()) / settings.INDIVIDUAL_LENGTH) * 10.0);
+                pathLength *=pathLength;
+                pathLength *=pathLength;
+
+                //Get fitness
+                double fitnessScore = 0;
+                fitnessScore += score * settings.GENE_WEIGHTS[0];
+                fitnessScore += humansAlive * settings.GENE_WEIGHTS[1];
+               // fitnessScore += zombiesAlive * settings.GENE_WEIGHTS[2];
+                if(state.zombies.isEmpty())fitnessScore += pathLength * settings.GENE_WEIGHTS[3];
+                return fitnessScore;
+            }
+
+            @Override
+            public boolean equals(Object o) {
+                if (this == o) return true;
+                if (o == null || getClass() != o.getClass()) return false;
+
+                Individual that = (Individual) o;
+
+                if (Double.compare(that.fitness, fitness) != 0) return false;
+                if (zombiesMax != that.zombiesMax) return false;
+                if (humansMax != that.humansMax) return false;
+                if (!genes.equals(that.genes)) return false;
+                return state != null ? state.equals(that.state) : that.state == null;
+            }
+
+            @Override
+            public int hashCode() {
+                int result;
+                long temp;
+                result = genes.hashCode();
+                result = 31 * result + (state != null ? state.hashCode() : 0);
+                temp   = Double.doubleToLongBits(fitness);
+                result = 31 * result + (int) (temp ^ (temp >>> 32));
+                result = 31 * result + zombiesMax;
+                result = 31 * result + humansMax;
+                return result;
+            }
         }
+        
+        public static class Gene {
+            private final int[] vars;
 
-        public List<Individual> evaluate(GameState game, long t, int[] counterArr) {
-            System.err.println("eval begin");
-            if (p.STARTING_FUEL == 3000) p.STARTING_FUEL = game.fuel;
-            if (pop.size() < DESIRED_POPULATION_SIZE) pop.addAll(
-                    simulateGenes(game, getRandomGenes(DESIRED_POPULATION_SIZE - pop.size())));
-            int counter = 0;
-            while (System.currentTimeMillis() - t < EVALUATE_TIME) {
-                List<List<Gene>> elite = new ArrayList<>();
-                int elitismIndex = (int) (pop.size() * ELITISM_PERCENTAGE);
-                for (int i = 0; i < elitismIndex; i++)
-                     elite.add(pop.get(i).path);
-                List<List<Gene>> newPop = crossover(pop);
-                mutate(newPop);
-                elite.addAll(newPop);
-                newPop = elite;
-                if (newPop.size() > DESIRED_POPULATION_SIZE) newPop = newPop.subList(0,
-                        DESIRED_POPULATION_SIZE);
-                else if (newPop.size() < DESIRED_POPULATION_SIZE) newPop.addAll(
-                        getRandomGenes(DESIRED_POPULATION_SIZE - newPop.size()));
-                pop = simulateGenes(game, newPop);
+            public Gene() {
+                vars = new int[2];
+                double distanceWeight = Genetic.R.nextDouble();
+                vars[0] = distanceWeight > 0.50 ? 1000 : (int) (2000 * distanceWeight);
+                vars[1] = Genetic.R.nextInt(16);
+            }
+
+            public Gene(int[] vars) {
+                this.vars = vars;
+            }
+
+            int[] getValues() {
+                return vars;
+            }
+
+            @Override
+            public boolean equals(Object o) {
+                if (this == o) return true;
+                if (o == null || getClass() != o.getClass()) return false;
+
+                Gene gene = (Gene) o;
+
+                return Arrays.equals(vars, gene.vars);
+            }
+
+            @Override
+            public int hashCode() {
+                return Arrays.hashCode(vars);
+            }
+
+            @Override
+            public String toString() {
+                return "Gene{" + "vars=" + Arrays.toString(vars) + '}';
+            }
+        }
+  
+        public static class Solver {
+            public Settings settings;
+
+            public Solver(Settings settings) {
+                this.settings = settings;
+            }
+
+            public List<Individual> evolve(List<Individual> pop, State state, long startTime,
+                                           int[] crossovers) {
+                if (settings.REMOVE_STEP) removeFirstStep(pop);
+                if(pop.isEmpty()) pop.addAll(getRandomIndividuals(settings.DESIRED_POPULATION_SIZE));
+                int counter = 0;
+                while (System.currentTimeMillis() - startTime < settings.EVALUATE_TIME) {
+                    int eliteSize = (int) (pop.size() * settings.ELITISM_PERCENTAGE);
+                    List<Individual> elite = new ArrayList<>(pop.subList(0, eliteSize));
+                    List<Individual> newPop = crossover(pop);
+                    mutate(newPop);
+                    elite.addAll(newPop);
+                    newPop = elite;
+                    newPop = resizeList(newPop);
+                    for (Individual i : newPop) i.simulate(state, settings);
+                    if (settings.REMOVE_DUPLICATES) newPop = new ArrayList<>(new HashSet<>(newPop));
+                    pop = newPop;
+                    pop.sort(Comparator.comparingDouble(Individual::getFitness).reversed());
+                    counter++;
+                }
+                crossovers[0] += counter;
                 
-                pop.sort(Comparator.comparingDouble((Individual i) -> i.fitnessScore).reversed());
-                counter++;
+                return pop;
             }
-            counterArr[0] += counter;
-            if (REMOVE_STEP) removeStep();
-            return pop;
-        }
 
-        //Rework remove step
-        private void removeStep() {
-            for (int i = pop.size() - 1; i >= 0; i--){
-                Individual c = pop.get(i);
-                if (!c.path.isEmpty()) c.path.remove(0);
-                if (!c.gameStateList.isEmpty()) c.gameStateList.remove(0);
-                if (c.path.isEmpty() || c.gameStateList.isEmpty()) pop.remove(i);
-            }
-        }
-
-        private List<List<Gene>> getRandomGenes(int maxAmount) {
-            List<List<Gene>> result = new ArrayList<>();
-            for (int j = 0; j < maxAmount; j++){
-                List<Gene> path = new ArrayList<>();
-                for (int i = 0; i < INDIVIDUAL_LENGTH; i++)
-                     path.add(new Gene());
-                result.add(path);
-            }
-            return result;
-        }
-
-        public List<Individual> simulateGenes(GameState gs, List<List<Gene>> path) {
-            List<Individual> result = new ArrayList<>();
-            for (List<Gene> genes : path){
-                ArrayList<GameState> history = new ArrayList<>();
-                GameState newGS = new GameState(gs);
-                for (Gene gene : genes){
-                    newGS.simulate(gene.angle, gene.power);
-                    history.add(new GameState(newGS));
-                    if (newGS.isLanded) break;
-                }
-                while (history.size() < INDIVIDUAL_LENGTH && !newGS.isLanded) {
-                    Gene gene = new Gene();
-                    newGS.simulate(gene.angle, gene.power);
-                    genes.add(gene);
-                    history.add(new GameState(newGS));
-                }
-                result.add(
-                        new Individual(new ArrayList<>(genes.subList(0, history.size())), history,
-                                p));
-            }
-            return result;
-        }
-
-        public void mutate(List<List<Gene>> population) {
-            for (List<Gene> genes : population)
-                for (int j = 0; j < genes.size(); j++)
-                    if (r.nextDouble() < MUTATION_CHANCE) genes.set(j, new Gene());
-        }
-
-        public List<List<Gene>> crossover(List<Individual> population) {
-            List<List<Gene>> result = new ArrayList<>();
-            while (result.size() < DESIRED_POPULATION_SIZE * CROSSOVER_PERCENTAGE) {
-                Individual ind1 = IS_TOURNAMENT_SELECT ? selectTournament(population) :
-                        selectWheel(population);
-                Individual ind2 = IS_TOURNAMENT_SELECT ? selectTournament(population) :
-                        selectWheel(population);
-                List<Gene> p1 = ind1.path;
-                List<Gene> p2 = ind2.path;
-                if (RANDOM_CROSSOVER_ON_DUPLICATE && p1 == p2){
-                    p2 = new ArrayList<>();
-                    for (int i = 0; i < p1.size(); i++)
-                         p2.add(new Gene());
-                } else if (p1 == p2){
-                    do {
-                        ind2 = selectTournament(population);
-                        p2   = ind2.path;
-                    } while (p1 == p2);
-                }
-                if (IS_POINT_CROSSOVER) crossoverOnPoint(result, p1, p2);
-                else crossoverContinuous(result, p1, p2);
-            }
-            return result;
-        }
-
-        public void crossoverContinuous(List<List<Gene>> childList, List<Gene> p1, List<Gene> p2) {
-            List<Gene> child1 = new ArrayList<>();
-            List<Gene> child2 = new ArrayList<>();
-            double crossoverPoint = r.nextDouble();
-            double crossoverRest = 1.0 - crossoverPoint;
-            for (int j = 0; j < p1.size() && j < p2.size(); j++){
-                Gene parent1 = p1.get(j);
-                Gene parent2 = p2.get(j);
-                double angle1 = crossoverPoint * (parent1.angle + 15) +
-                                crossoverRest * (parent2.angle + 15);
-                double angle2 = crossoverRest * (parent1.angle + 15) +
-                                crossoverPoint * (parent2.angle + 15);
-                double power1 =
-                        crossoverPoint * (parent1.power + 1) + crossoverRest * (parent2.power + 1);
-                double power2 =
-                        crossoverRest * (parent1.power + 1) + crossoverPoint * (parent2.power + 1);
-                child1.add(new Gene((int) Math.round(angle1 - 15), (int) Math.round(power1 - 1)));
-                child2.add(new Gene((int) Math.round(angle2 - 15), (int) Math.round(power2 - 1)));
-            }
-            childList.add(child1);
-            childList.add(child2);
-        }
-
-        public void crossoverOnPoint(List<List<Gene>> childList, List<Gene> p1, List<Gene> p2) {
-            if(p1.size()<2 || p2.size()<2) {
-                childList.add(p1);
-                childList.add(p2);
-                return;
-            }
-            try {
-                int crossoverIndex = (int) (r.nextDouble() * Math.min(p1.size(), p2.size()));
-                List<Gene> child1 = new ArrayList<>(p1.subList(0, crossoverIndex));
-                child1.addAll(p2.subList(crossoverIndex, p2.size()));
-                List<Gene> child2 = new ArrayList<>(p2.subList(0, crossoverIndex));
-                child2.addAll(p1.subList(crossoverIndex, p1.size()));
-                childList.add(child1);
-                childList.add(child2);
-            } catch (Exception e) {
-                System.err.println("1:" + p1.size() + " 2:" + p2.size());
-                System.exit(0);
-            }
-        }
-
-        private Individual selectWheel(List<Individual> population) {
-            double fitnessSum = 0.0;
-            for (Individual i : population){
-                fitnessSum += i.fitnessScore;
-            }
-            double[] probabilities = new double[population.size()];
-            double previousProbability = 0.0;
-            for (int i = 0; i < population.size(); i++){
-                Individual ind = population.get(i);
-                                   previousProbability += ind.fitnessScore / fitnessSum;
-                probabilities[i] = previousProbability;
-            }
-            double selectProbability = r.nextDouble();
-            for (int i = 0; i < probabilities.length; i++){
-                if (selectProbability < probabilities[i]) return population.get(i);
-            }
-            return population.get(population.size() - 1);
-        }
-
-        public Individual selectTournament(List<Individual> population) {
-            Individual bestInTournament = null;
-            for (int j = 0; j < TOURNAMENT_SIZE; j++){
-                int index = r.nextInt(population.size());
-                Individual ind = population.get(index);
-                if (bestInTournament == null ||
-                    ind.fitnessScore > bestInTournament.fitnessScore) bestInTournament = ind;
-            }
-            return bestInTournament;
-        }
-    }
-
-    static class Individual {
-        List<Gene> path;
-        List<GameState> gameStateList;
-        double fitnessScore;
-        Player p;
-
-        public Individual(List<Gene> path, List<GameState> gameStateList, Player p) {
-            this.path          = path;
-            this.gameStateList = gameStateList;
-            this.p             = p;
-            getFitness();
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-
-            Individual that = (Individual) o;
-            return fitnessScore - that.fitnessScore < 0.000001 &&
-                   gameStateList.equals(that.gameStateList);
-        }
-
-        @Override
-        public String toString() {
-            return "Individual fitnessScore=" + fitnessScore;
-        }
-
-        @Override
-        public int hashCode() {
-            int result;
-            long temp;
-            temp   = Double.doubleToLongBits(fitnessScore);
-            result = (int) (temp ^ (temp >>> 32));
-            result = 31 * result * gameStateList.hashCode();
-            return result;
-        }
-
-        public void getFitness() {
-            GameState lastState = gameStateList.get(gameStateList.size() - 1);
-            fitnessScore = 0;
-            double distance = lastState.isLanded ? lastState.distanceToLanding : 7000.0;
-            double hSpeed = Math.abs(lastState.hSpeed);
-            double vSpeed = Math.abs(lastState.vSpeed);
-            int angle = Math.abs(lastState.angle);
-            int fuel = Math.abs(lastState.fuel);
-
-            //Normalize to 0-100 range by dividing current / max
-            double normDistance = 100.0 - distance / 7000.0 * 100.0;
-            //Make score exponential
-            normDistance *= normDistance;
-            double normHS = 100.0 - (hSpeed < 20.0 ? 0 : hSpeed) / 500.0 * 100.0;
-            normHS *= normHS;
-            double normVS = 100.0 - (vSpeed < 40.0 ? 0 : vSpeed) / 500.0 * 100.0;
-            normHS *= normVS;
-            double normAngle = 100.0 - angle / 90.0 * 100.0;
-            normAngle *= normAngle;
-            double normFuel = fuel / (double) p.STARTING_FUEL * 100.0;
-            normFuel *= normFuel;
-
-            //Get fitness
-            fitnessScore = normDistance * p.GE.GENE_WEIGHTS[0] + normHS * p.GE.GENE_WEIGHTS[1] +
-                           normVS * p.GE.GENE_WEIGHTS[2] + normAngle * p.GE.GENE_WEIGHTS[3];
-            //Add fuel to score only after safe landing
-            if (lastState.isSafeLanded) fitnessScore += normFuel * p.GE.GENE_WEIGHTS[4];
-        }
-    }
-
-    static class Gene {
-        final public int angle;
-        final public int power;
-
-        public Gene(int angle, int power) {
-            this.angle = angle;
-            this.power = power;
-        }
-
-        public Gene() {
-            Random r = new Random();
-           // int angleDir = r.nextInt(3);
-            //angle = angleDir == 0 ? -15 : angleDir == 1 ? 0 : 15;
-            int angleRand = r.nextInt(11) -5;
-            angle = angleRand * 3;
-            power = r.nextInt(3) - 1;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-
-            Gene gene = (Gene) o;
-
-            if (angle != gene.angle) return false;
-            return power == gene.power;
-        }
-
-        @Override
-        public int hashCode() {
-            int result = angle;
-            result = 31 * result + power;
-            return result;
-        }
-    }
-
-    static class GameState {
-        public double distanceToLanding = 0.0;
-        double x;
-        double y;
-        double hSpeed;
-        double vSpeed;
-        int fuel;
-        int angle;
-        int power;
-        boolean isLanded = false;
-        boolean isSafeLanded = false;
-        private double[] landscape;
-        private double safeAreaBegin = -1;
-        private double safeAreaEnd = -1;
-
-        public GameState(double x, double y, double hSpeed, double vSpeed, int fuel, int angle,
-                         int power, double[] landscape, double safeAreaBegin, double safeAreaEnd) {
-            this.x             = x;
-            this.y             = y;
-            this.hSpeed        = hSpeed;
-            this.vSpeed        = vSpeed;
-            this.fuel          = fuel;
-            this.angle         = angle;
-            this.power         = power;
-            this.landscape     = landscape;
-            this.safeAreaBegin = safeAreaBegin;
-            this.safeAreaEnd   = safeAreaEnd;
-        }
-
-        public GameState(GameState gs) {
-            x                      = gs.x;
-            y                      = gs.y;
-            hSpeed                 = gs.hSpeed;
-            vSpeed                 = gs.vSpeed;
-            fuel                   = gs.fuel;
-            angle                  = gs.angle;
-            power                  = gs.power;
-            isLanded               = gs.isLanded;
-            isSafeLanded           = gs.isSafeLanded;
-            this.landscape         = gs.landscape;
-            this.safeAreaBegin     = gs.safeAreaBegin;
-            this.safeAreaEnd       = gs.safeAreaEnd;
-            this.distanceToLanding = gs.distanceToLanding;
-        }
-
-        public void simulate(int dAngle, int dPower) {
-            if (dPower != 0) power = Math.max(0, Math.min(4, power + dPower));
-            if (dAngle != 0) angle = Math.max(-90, Math.min(90, angle + dAngle));
-            double oldX = x;
-            double oldY = y;
-            move();
-            if (fuel <= 0 || isOutOfBounds() || isIntersect(oldX, oldY)){
-                isLanded     = true;
-                isSafeLanded = (!isOutOfBounds()) && fuel >= 0 && isSafeLand();
-            }
-        }
-
-        private boolean isOutOfBounds() {
-            return x < 0.0 || x > 7000.0 || y < 0.0 || y > 3000.0;
-        }
-
-        private boolean isIntersect(double oldX, double oldY) {
-            Line2D line = new Line2D.Double(new Point2D.Double(oldX, oldY),
-                    new Point2D.Double(x, y));
-            for (int i = 0; i < landscape.length - 2; i += 2){
-                if (line.intersectsLine(landscape[i], landscape[i + 1], landscape[i + 2],
-                        landscape[i + 3])){
-                    /*double[] intersection = intersection(line,
-                            new Line2D.Double(new Point2D.Double(landscape[i], landscape[i + 1]),
-                                    new Point2D.Double(landscape[i + 2], landscape[i + 3])));
-                    distanceToLanding = getDistance(intersection);*/
-                    distanceToLanding = x<safeAreaBegin? safeAreaBegin-x : x>safeAreaEnd? x-safeAreaEnd : 0;
-                    return true;
+            private void removeFirstStep(List<Individual> pop) {
+                for (int i = pop.size() - 1; i >= 0; i--){
+                    Individual ind = pop.get(i);
+                    if (ind.getGenes().size()<2) pop.remove(i);
+                    else ind.removeFirstStep();
                 }
             }
-            return false;
-        }
 
-        private double getDistance(double[] inter) {
-            double interX = inter[0];
-            double interY = inter[1];
-            if (interX >= safeAreaBegin && interX <= safeAreaEnd){
-                return 0.0;
+            private void mutate(List<Individual> pop) {
+                for (Individual ind : pop){
+                    List<Gene> genes = ind.getGenes();
+                    for (int j = 0; j < genes.size(); j++)
+                        if (Genetic.R.nextDouble() < settings.MUTATION_CHANCE) genes.set(j,
+                                new Gene());
+                }
             }
-            double dist = 100.0;
-            if (interX < safeAreaBegin){
-                for (int i = 0; i < landscape.length; i += 2){
-                    if (landscape[i] >= safeAreaBegin) break;
-                    if (landscape[i] < interX) continue;
-                    if (landscape[i] > interX){
-                        dist += Point2D.distance(interX, interY, landscape[i], landscape[i + 1]);
-                        interX = landscape[i];
-                        interY = landscape[i + 1];
+
+            private List<Individual> crossover(List<Individual> pop) {
+                List<Individual> result = new ArrayList<>();
+                while (result.size() <
+                       settings.DESIRED_POPULATION_SIZE * settings.CROSSOVER_PERCENTAGE) {
+                    Individual i1 = settings.selectType.doSelect(pop, settings.TOURNAMENT_SIZE);
+                    Individual i2 = settings.selectType.doSelect(pop, settings.TOURNAMENT_SIZE);
+                    if (settings.RANDOM_CROSSOVER_ON_DUPLICATE){
+                        ArrayList<Gene> randGenes = new ArrayList<>();
+                        for (int i = 0; i < settings.INDIVIDUAL_LENGTH; i++)
+                             randGenes.add(new Gene());
+                        i2 = new Individual(randGenes);
+                    } else {
+                        int counter = 0;
+                        while (i1 == i2 && counter < 100) {
+                            i2 = settings.selectType.doSelect(pop, settings.TOURNAMENT_SIZE);
+                            counter++;
+                        }
                     }
+                    settings.crossoverType.doCrossover(result, i1, i2);
                 }
-            } else {
-                for (int i = landscape.length - 2; i >= 0; i -= 2){
-                    if (landscape[i] <= safeAreaEnd) break;
-                    if (landscape[i] > interX) continue;
-                    if (landscape[i] < interX){
-                        dist += Point2D.distance(interX, interY, landscape[i], landscape[i + 1]);
-                        interX = landscape[i];
-                        interY = landscape[i + 1];
-                    }
-                }
-            }
-            return dist;
-        }
-
-        private double[] intersection(Line2D a, Line2D b) {
-            double x1 = a.getX1(), y1 = a.getY1(), x2 = a.getX2(), y2 = a.getY2(), x3 = b.getX1()
-                    , y3 = b
-                    .getY1(), x4 = b.getX2(), y4 = b.getY2();
-            double d = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
-            if (d == 0){
-                return new double[]{0.0, 0.0};
+                return result;
             }
 
-            double xi = ((x3 - x4) * (x1 * y2 - y1 * x2) - (x1 - x2) * (x3 * y4 - y3 * x4)) / d;
-            double yi = ((y3 - y4) * (x1 * y2 - y1 * x2) - (y1 - y2) * (x3 * y4 - y3 * x4)) / d;
+            private List<Individual> resizeList(List<Individual> l1) {
+                if (l1.size() > settings.DESIRED_POPULATION_SIZE) l1 = new ArrayList<>(
+                        l1.subList(0, settings.DESIRED_POPULATION_SIZE));
+                else if (l1.size() < settings.DESIRED_POPULATION_SIZE) l1.addAll(
+                        getRandomIndividuals(settings.DESIRED_POPULATION_SIZE - l1.size()));
+                return l1;
+            }
 
-            return new double[]{xi, yi};
+            public List<Individual> getRandomIndividuals(int length) {
+                List<Individual> result = new ArrayList<>();
+                for (int i = 0; i < length; i++)
+                     result.add(new Individual());
+                return result;
+            }
         }
 
-        private boolean isSafeLand() {
-            if (x > safeAreaEnd || x < safeAreaBegin || angle != 0 || Math.abs(vSpeed) > 40 ||
-                Math.abs(hSpeed) > 20) return false;
-            return true;
+        public static class Settings {
+            public Genetic.SelectType selectType = SelectType.TOURNAMENT;
+            public Genetic.CrossoverType crossoverType = CrossoverType.POINT;
+            public boolean RANDOM_CROSSOVER_ON_DUPLICATE = true;
+            public boolean REMOVE_DUPLICATES = false;
+            public boolean REMOVE_STEP = true;
+            public int TOURNAMENT_SIZE = 5;
+            public double ELITISM_PERCENTAGE = 0.2;
+            public int INDIVIDUAL_LENGTH = 200;
+            public int DESIRED_POPULATION_SIZE = 200;
+            public double CROSSOVER_PERCENTAGE = 0.8;
+            public double MUTATION_CHANCE = 0.02;
+            public double[] GENE_WEIGHTS = new double[]{0.5, 0.5, 0.5, 0.5};
+            public long EVALUATE_TIME = 95;
+            public double[] landscape;
+            public double[] landingSite;
+
+            public Settings() {
+            }
+
+            public Settings(Settings s) {
+                this.selectType                    = s.selectType;
+                this.crossoverType                 = s.crossoverType;
+                this.RANDOM_CROSSOVER_ON_DUPLICATE = s.RANDOM_CROSSOVER_ON_DUPLICATE;
+                this.REMOVE_DUPLICATES             = s.REMOVE_DUPLICATES;
+                this.REMOVE_STEP                   = s.REMOVE_STEP;
+                this.TOURNAMENT_SIZE               = s.TOURNAMENT_SIZE;
+                this.ELITISM_PERCENTAGE            = s.ELITISM_PERCENTAGE;
+                this.INDIVIDUAL_LENGTH             = s.INDIVIDUAL_LENGTH;
+                this.DESIRED_POPULATION_SIZE       = s.DESIRED_POPULATION_SIZE;
+                this.CROSSOVER_PERCENTAGE          = s.CROSSOVER_PERCENTAGE;
+                this.MUTATION_CHANCE               = s.MUTATION_CHANCE;
+                this.GENE_WEIGHTS                  = s.GENE_WEIGHTS;
+                this.EVALUATE_TIME                 = s.EVALUATE_TIME;
+                this.landscape                     = s.landscape;
+                this.landingSite                   = s.landingSite;
+            }
         }
-
-        private void move() {
-            double radians = Math.toRadians(angle);
-            double xAcc = Math.sin(radians) * power;
-            double yAcc = (Math.cos(radians) * power - 3.711);
-            x += hSpeed - xAcc * 0.5;
-            y += vSpeed + yAcc * 0.5;
-            hSpeed -= xAcc;
-            vSpeed += yAcc;
-            fuel -= power;
-        }
-
-        @Override
-        public String toString() {
-            return "GameState{" + "x=" + x + ", y=" + y + ", hSpeed=" + hSpeed + ", vSpeed=" +
-                   vSpeed + ", fuel=" + fuel + ", angle=" + angle + ", power=" + power +
-                   ", isLanded=" + isLanded + ", isSafeLanded=" + isSafeLanded + '}';
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-
-            GameState gameState = (GameState) o;
-
-            if (Double.compare(gameState.x, x) != 0) return false;
-            if (Double.compare(gameState.y, y) != 0) return false;
-            if (Double.compare(gameState.hSpeed, hSpeed) != 0) return false;
-            if (Double.compare(gameState.vSpeed, vSpeed) != 0) return false;
-            if (fuel != gameState.fuel) return false;
-            if (angle != gameState.angle) return false;
-            if (power != gameState.power) return false;
-            if (isLanded != gameState.isLanded) return false;
-            return isSafeLanded == gameState.isSafeLanded;
-        }
-
-        @Override
-        public int hashCode() {
-            int result;
-            long temp;
-            temp   = Double.doubleToLongBits(x);
-            result = (int) (temp ^ (temp >>> 32));
-            temp   = Double.doubleToLongBits(y);
-            result = 31 * result + (int) (temp ^ (temp >>> 32));
-            temp   = Double.doubleToLongBits(hSpeed);
-            result = 31 * result + (int) (temp ^ (temp >>> 32));
-            temp   = Double.doubleToLongBits(vSpeed);
-            result = 31 * result + (int) (temp ^ (temp >>> 32));
-            result = 31 * result + fuel;
-            result = 31 * result + angle;
-            result = 31 * result + power;
-            result = 31 * result + (isLanded ? 1 : 0);
-            result = 31 * result + (isSafeLanded ? 1 : 0);
-            return result;
-        }
-
     }
 }
-
