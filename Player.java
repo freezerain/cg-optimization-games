@@ -25,7 +25,7 @@ class Player {
                 in.nextInt();
                 in.nextInt();
             }
-            System.err.println("Player: " + player.x + ", " + player.y);
+/*            System.err.println("Player: " + player.x + ", " + player.y);
             System.err.print("Humans: ");
             for (Actor human : humans){
                 System.err.print(human.x+","+human.y+",");
@@ -35,10 +35,7 @@ class Player {
             for (Actor human : zombies){
                 System.err.print(human.x+","+human.y+",");
             }
-            System.err.println();
-            
-            
-            
+            System.err.println();*/
             
             int[] counter = new int[1];
             Genetic.State startState = new Genetic.State(player, humans, zombies);
@@ -49,6 +46,7 @@ class Player {
             int nextX;
             int nextY;
             if (bestInd.state.humans.isEmpty()){
+                System.err.println("Solution not found! Simple logic.");
                 Actor closestHuman = startState.humans.get(0);
                 int distance = Integer.MAX_VALUE;
                 humanLoop:
@@ -69,13 +67,14 @@ class Player {
                 nextX = closestHuman.x;
                 nextY = closestHuman.y;
             }else{
-
                 Genetic.Gene nextGene = bestInd.getGenes().get(0);
+                Genetic.State nextState = bestInd.states.get(0);
                 nextX = Math.max(0,
-                        (int) (bestInd.state.player.x + nextGene.getValues()[0] * Math.cos(nextGene.getValues()[1] * 22.5)));
+                        (int) (startState.player.x + nextGene.getValues()[0] * Math.cos(nextGene.getValues()[1] * 22.5)));
                 nextY = Math.max(0,
-                        (int) (bestInd.state.player.y + nextGene.getValues()[0] * Math.sin(nextGene.getValues()[1] * 22.5)));
+                        (int) (startState.player.y + nextGene.getValues()[0] * Math.sin(nextGene.getValues()[1] * 22.5)));
             }
+            solver.removeFirstStep(pop);
             System.out.println(nextX + " " + nextY);
         }
     }
@@ -112,6 +111,11 @@ class Player {
         @Override
         public int hashCode() {
             return id;
+        }
+
+        public void moveToNext(int nextX, int nextY) {
+            x = nextX;
+            y = nextY;
         }
 
         public void moveToNext(int nextX, int nextY, int movementDistance) {
@@ -250,9 +254,9 @@ class Player {
             private void movePlayer(int radius, int angle) {
                 double vectorX = radius * Math.cos(angle * 22.5);
                 double vectorY = radius * Math.sin(angle * 22.5);
-                int nextX = Math.max(0, (int) (player.x + vectorX));
-                int nextY = Math.max(0, (int) (player.y + vectorY));
-                player.moveToNext(nextX, nextY, 1000);
+                int nextX = Math.min(15999,Math.max(0, (int) (player.x + vectorX)));
+                int nextY = Math.min(8999 ,Math.max(0, (int) (player.y + vectorY)));
+                player.moveToNext(nextX, nextY);
             }
 
             private void killHumans(List<Actor> humanKillList) {
@@ -365,26 +369,44 @@ class Player {
             }
 
             private double calculateFitness(Settings settings) {
+                int fibSum = 0;
+                int combo = 0;
+                for (int i = zombiesMax - 1; i >= 0; i--){
+                    if (combo < 39) fibSum += FIBONACCI[combo++];
+                }
+                long maxScore =  10 * (humansMax * humansMax) * fibSum;
+                
                 if(state.score > 100000000L) System.out.println("LONG ERROR!!!! Overflow score");
-                double score = (((double)state.score) / 100000000L) * 10.0;
+                
+                double score = (((double)state.score) / maxScore) * 10.0;
+                score+=1;
                 score *=score;
                 score *=score;
-                double humansAlive = (((double)state.humans.size()) / humansMax) * 10.0;
+                
+                double humansAlive = state.humans.size()>0?10.0:0.0;
                 humansAlive *=humansAlive;
                 humansAlive *=humansAlive;
-              /*  double zombiesAlive = 10.0 - ((((double)state.zombies.size()) / zombiesMax) * 10.0);
+                
+/*                double humansAlive = (((double)state.humans.size()) / humansMax) * 10.0;
+                humansAlive+=1;
+                humansAlive *=humansAlive;
+                humansAlive *=humansAlive;
+                
+                double zombiesAlive = 10.0 - ((((double)state.zombies.size()) / zombiesMax) * 10.0);
+                zombiesAlive+=1;
                 zombiesAlive *=zombiesAlive;
                 zombiesAlive *=zombiesAlive;*/
+                
+
                 double pathLength = 10.0 - ((((double)genes.size()) / settings.INDIVIDUAL_LENGTH) * 10.0);
-                pathLength *=pathLength;
-                pathLength *=pathLength;
+
 
                 //Get fitness
                 double fitnessScore = 0;
-                fitnessScore += score * settings.GENE_WEIGHTS[0];
+                if(state.humans.size()>0) fitnessScore += score * settings.GENE_WEIGHTS[0];
                 fitnessScore += humansAlive * settings.GENE_WEIGHTS[1];
-               // fitnessScore += zombiesAlive * settings.GENE_WEIGHTS[2];
-                if(state.zombies.isEmpty())fitnessScore += pathLength * settings.GENE_WEIGHTS[3];
+                //if(state.humans.size()>0) fitnessScore += zombiesAlive * settings.GENE_WEIGHTS[2];
+                if(state.humans.size()>0 && state.zombies.isEmpty())fitnessScore += pathLength * settings.GENE_WEIGHTS[3];
                 return fitnessScore;
             }
 
@@ -422,7 +444,9 @@ class Player {
             public Gene() {
                 vars = new int[2];
                 double distanceWeight = Genetic.R.nextDouble();
-                vars[0] = distanceWeight > 0.50 ? 1000 : (int) (2000 * distanceWeight);
+                //[0] = distanceWeight > 0.50 ? 1000 : (int) (2000 * distanceWeight);
+                vars[0] = distanceWeight > 0.50 ? 1000 : 0;
+                //vars[0] = (int) (1000 * distanceWeight);
                 vars[1] = Genetic.R.nextInt(16);
             }
 
@@ -486,7 +510,7 @@ class Player {
                 return pop;
             }
 
-            private void removeFirstStep(List<Individual> pop) {
+            public void removeFirstStep(List<Individual> pop) {
                 for (int i = pop.size() - 1; i >= 0; i--){
                     Individual ind = pop.get(i);
                     if (ind.getGenes().size()<2) pop.remove(i);
@@ -547,17 +571,15 @@ class Player {
             public Genetic.CrossoverType crossoverType = CrossoverType.POINT;
             public boolean RANDOM_CROSSOVER_ON_DUPLICATE = true;
             public boolean REMOVE_DUPLICATES = false;
-            public boolean REMOVE_STEP = true;
+            public boolean REMOVE_STEP = false;
             public int TOURNAMENT_SIZE = 5;
-            public double ELITISM_PERCENTAGE = 0.2;
-            public int INDIVIDUAL_LENGTH = 200;
-            public int DESIRED_POPULATION_SIZE = 200;
-            public double CROSSOVER_PERCENTAGE = 0.8;
+            public double ELITISM_PERCENTAGE = 0.3;
+            public int INDIVIDUAL_LENGTH = 50;
+            public int DESIRED_POPULATION_SIZE = 50;
+            public double CROSSOVER_PERCENTAGE = 0.7;
             public double MUTATION_CHANCE = 0.02;
-            public double[] GENE_WEIGHTS = new double[]{0.5, 0.5, 0.5, 0.5};
+            public double[] GENE_WEIGHTS = new double[]{1, 0.5, 0.5, 0.1};
             public long EVALUATE_TIME = 95;
-            public double[] landscape;
-            public double[] landingSite;
 
             public Settings() {
             }
@@ -576,8 +598,6 @@ class Player {
                 this.MUTATION_CHANCE               = s.MUTATION_CHANCE;
                 this.GENE_WEIGHTS                  = s.GENE_WEIGHTS;
                 this.EVALUATE_TIME                 = s.EVALUATE_TIME;
-                this.landscape                     = s.landscape;
-                this.landingSite                   = s.landingSite;
             }
         }
     }

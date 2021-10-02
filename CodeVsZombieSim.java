@@ -9,10 +9,15 @@ import java.util.stream.Collectors;
 import static java.lang.Thread.sleep;
 
 public class CodeVsZombieSim {
-    static int[] player = {500, 4500};
-    static int[] humans = {100,4000,130,5000,10,4500,500,3500,10,5500,100,3000};
+    //static int[] player = {500, 4500};
+/*    static int[] humans = {100,4000,130,5000,10,4500,500,3500,10,5500,100,3000};
     static int[] zombies = {8000,4500,9000,4500,10000,4500,11000,4500,12000,4500,
-            13000,4500,14000,4500,15000,3500,14500,2500,15900,500};
+            13000,4500,14000,4500,15000,3500,14500,2500,15900,500};*/
+    static int[] player = {0, 4000};
+    static int[] humans = {0,1000,0,8000};
+    static int[] zombies = {3000,1000,3000,8000,4000,1000,4000,8000,5000,1000,5000,8000,7000,1000,7000,8000,9000,
+            1000,9000,8000,11000,1000,11000,8000,13000,1000,13000,8000,14000,1000,14000,8000,14500,1000,14500,8000,
+            15000,1000,15000,8000};
 
     public static void main(String[] args) throws InterruptedException {
         evaluate(player,humans, zombies);
@@ -58,10 +63,21 @@ public class CodeVsZombieSim {
                 }
                 paths[i] = path;
             }
+
+
+            Player.Genetic.Individual bestInd = pop.get(0);
+            Player.Genetic.Gene nextGene = pop.get(0).genes.get(0);
+            var nextX = Math.max(0,
+                    (int) (startState.player.x + nextGene.getValues()[0] * Math.cos(nextGene.getValues()[1] * 22.5)));
+            var nextY = Math.max(0,
+                    (int) (startState.player.y + nextGene.getValues()[0] * Math.sin(nextGene.getValues()[1] * 22.5)));
             
+            startState = bestInd.states.get(0);
+            System.err.println("stateX/geneX:" + startState.player.x +"/" + nextX+ " stateY/geneY:" + startState.player.y + "/"+nextY);
             
-            
-            startState = pop.get(0).states.get(0);
+
+
+
             System.err.println("score: " + startState.score);
             humans = new int[startState.humans.size()*2];
             for (int i = 0; i < startState.humans.size(); i++){
