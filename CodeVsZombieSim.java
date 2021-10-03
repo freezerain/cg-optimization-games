@@ -1,10 +1,7 @@
-import marsLander.Lander;
-import marsLander.LanderPath;
 import src.DrawerController;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import static java.lang.Thread.sleep;
 
@@ -53,14 +50,16 @@ public class CodeVsZombieSim {
                 scores[i] = individual.state.humans.isEmpty() ? -1.0:     individual.fitness;
                 List<Player.Genetic.Gene> genes = individual.genes;
                 int[] path = new int[genes.size()*2];
+                Player.Genetic.State state = new Player.Genetic.State(startState);
                 for (int j = 0; j < genes.size(); j++){
                     Player.Genetic.Gene gene = genes.get(j);
-                    Player.Genetic.State state = individual.states.get(j);
+                    state.simulate(gene);
                     int nextX = state.player.x;
                     int nextY = state.player.y;
                     path[j*2] = nextX;
                     path[j*2+1] = nextY;
                 }
+                
                 paths[i] = path;
             }
 
@@ -72,8 +71,8 @@ public class CodeVsZombieSim {
             var nextY = Math.max(0,
                     (int) (startState.player.y + nextGene.getValues()[0] * Math.sin(nextGene.getValues()[1] * 22.5)));
             
-            startState = bestInd.states.get(0);
-            System.err.println("stateX/geneX:" + startState.player.x +"/" + nextX+ " stateY/geneY:" + startState.player.y + "/"+nextY);
+            //startState = bestInd.states.get(0);
+           // System.err.println("stateX/geneX:" + startState.player.x +"/" + nextX+ " stateY/geneY:" + startState.player.y + "/"+nextY);
             
 
 

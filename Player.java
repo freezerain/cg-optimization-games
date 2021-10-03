@@ -1,4 +1,3 @@
-
 import java.util.*;
 
 class Player {
@@ -36,11 +35,11 @@ class Player {
                 System.err.print(human.x+","+human.y+",");
             }
             System.err.println();*/
-            
+
             int[] counter = new int[1];
             Genetic.State startState = new Genetic.State(player, humans, zombies);
-            pop = solver.evolve(pop, startState, System.currentTimeMillis(),counter);
-            System.err.println("crossovers: "+ counter[0]);
+            pop = solver.evolve(pop, startState, System.currentTimeMillis(), counter);
+            System.err.println("crossovers: " + counter[0]);
             Genetic.Individual bestInd = pop.get(0);
             System.err.println("ind: " + bestInd.fitness);
             int nextX;
@@ -52,33 +51,34 @@ class Player {
                 humanLoop:
                 for (Actor h : startState.humans){
                     int distanceToPlayer = (int) Math.sqrt(startState.player.getDistanceSqrt(h));
-                    distanceToPlayer-=2000;
-                    int turnsToPlayer = distanceToPlayer/1000 + (distanceToPlayer%1000!=0? 1 : 0);
+                    distanceToPlayer -= 2000;
+                    int turnsToPlayer =
+                            distanceToPlayer / 1000 + (distanceToPlayer % 1000 != 0 ? 1 : 0);
                     for (Actor z : startState.zombies){
                         int distanceSqrt = (int) Math.sqrt(h.getDistanceSqrt(z));
-                        int turnsToZombie = distanceSqrt / 400 + (distanceSqrt%400!=0? 1 : 0);
-                        if(turnsToZombie<turnsToPlayer) continue humanLoop;
+                        int turnsToZombie = distanceSqrt / 400 + (distanceSqrt % 400 != 0 ? 1 : 0);
+                        if (turnsToZombie < turnsToPlayer) continue humanLoop;
                     }
-                    if(turnsToPlayer<distance){
-                        distance = turnsToPlayer;
+                    if (turnsToPlayer < distance){
+                        distance     = turnsToPlayer;
                         closestHuman = h;
                     }
                 }
                 nextX = closestHuman.x;
                 nextY = closestHuman.y;
-            }else{
+            } else {
                 Genetic.Gene nextGene = bestInd.getGenes().get(0);
                 Genetic.State nextState = bestInd.states.get(0);
-                nextX = Math.max(0,
-                        (int) (startState.player.x + nextGene.getValues()[0] * Math.cos(nextGene.getValues()[1] * 22.5)));
-                nextY = Math.max(0,
-                        (int) (startState.player.y + nextGene.getValues()[0] * Math.sin(nextGene.getValues()[1] * 22.5)));
+                nextX = Math.max(0, (int) (startState.player.x + nextGene.getValues()[0] * Math.cos(
+                        nextGene.getValues()[1] * 22.5)));
+                nextY = Math.max(0, (int) (startState.player.y + nextGene.getValues()[0] * Math.sin(
+                        nextGene.getValues()[1] * 22.5)));
             }
             solver.removeFirstStep(pop);
             System.out.println(nextX + " " + nextY);
         }
     }
-    
+
     static class Actor {
         int id;
         int x;
@@ -121,14 +121,22 @@ class Player {
         public void moveToNext(int nextX, int nextY, int movementDistance) {
             double vectorX = nextX - x;
             double vectorY = nextY - y;
-            double normaliser = Math.max(Math.abs(vectorX), Math.abs(vectorY));
-            int newX = (int) (x + (vectorX / normaliser * movementDistance));
-            int newY = (int) (y + (vectorY / normaliser * movementDistance));
-            x = x < nextX ? Math.min(nextX, newX) : Math.max(nextX, newX);
-            y = y < nextY ? Math.min(nextY, newY) : Math.max(nextY, newY);
+            //double vectorX = nextX - x;
+            //double vectorY = nextY - y;
+            double dist = Math.sqrt(vectorX * vectorX + vectorY * vectorY);
+            vectorX /= dist;
+            vectorY /= dist;
+            x += vectorX * movementDistance;
+            y += vectorY * movementDistance;
+            //double normaliser = Math.max(Math.abs(vectorX), Math.abs(vectorY));
+            //int newX = (int) (x + (vectorX / normaliser * movementDistance));
+            //int newY = (int) (y + (vectorY / normaliser * movementDistance));
+            //x = x < nextX ? Math.min(nextX, newX) : Math.max(nextX, newX);
+            //y = y < nextY ? Math.min(nextY, newY) : Math.max(nextY, newY);
+
         }
     }
-    
+
     static class Genetic {
         private static final Random R = new Random();
 
@@ -230,13 +238,18 @@ class Player {
             List<Actor> humans;
             List<Actor> zombies;
             long score = 0;
+            KdTree.Node root;
 
             public State(Actor player, List<Actor> humans, List<Actor> zombies) {
                 this.player = new Actor(player);
-                this.humans = new ArrayList<>();
-                humans.forEach(h -> this.humans.add(new Actor(h)));
-                this.zombies = new ArrayList<>();
-                zombies.forEach(h -> this.zombies.add(new Actor(h)));
+                this.humans = new ArrayList<>(humans.size());
+                for (Actor h : humans){
+                    this.humans.add(new Actor(h));
+                }
+                this.zombies = new ArrayList<>(zombies.size());
+                for (Actor z : zombies){
+                    this.zombies.add(new Actor(z));
+                }
             }
 
             public State(State gs) {
@@ -245,23 +258,46 @@ class Player {
             }
 
             public void simulate(Gene gene) {
-                List<Actor> humanKillList = moveZombies();
+                // List<Actor> humanKillList = moveZombies();
+                buildKdTree();
+                moveZombies();
                 movePlayer(gene.getValues()[0], gene.getValues()[1]);
                 killZombies();
-                killHumans(humanKillList);
+                // killHumans(humanKillList);
+                killHumans();
+            }
+            
+            private void buildKdTree(){
+                root = null;
+                root = KdTree.insert(root, player, true);
+                for (Actor h : humans){
+                    root = KdTree.insert(root, h, true);
+                }
+             /*   for (Actor z : zombies){
+                    root = KdTree.insert(root, z, false);
+                }*/
             }
 
             private void movePlayer(int radius, int angle) {
                 double vectorX = radius * Math.cos(angle * 22.5);
                 double vectorY = radius * Math.sin(angle * 22.5);
-                int nextX = Math.min(15999,Math.max(0, (int) (player.x + vectorX)));
-                int nextY = Math.min(8999 ,Math.max(0, (int) (player.y + vectorY)));
+                int nextX = Math.min(15999, Math.max(0, (int) (player.x + vectorX)));
+                int nextY = Math.min(8999, Math.max(0, (int) (player.y + vectorY)));
                 player.moveToNext(nextX, nextY);
             }
 
-            private void killHumans(List<Actor> humanKillList) {
-                for (Actor a : humanKillList)
-                    humans.remove(a);
+            private void killHumans(/*List<Actor> humanKillList*/) {
+                for (int i = humans.size() - 1; i >= 0; i--){
+                    Actor h = humans.get(i);
+                    for (Actor z : zombies){
+                        if (h.x == z.x && h.y == z.y){
+                            humans.remove(i);
+                            break;
+                        }
+                    }
+                }
+            /*    for (Actor a : humanKillList)
+                    humans.remove(a);*/
             }
 
             private void killZombies() {
@@ -275,22 +311,24 @@ class Player {
                 }
                 score += 10 * (humans.size() * humans.size()) * fibSum;
             }
-            private List<Actor> moveZombies() {
-                ArrayList<Actor> humanKillList = new ArrayList<>();
+
+            private void moveZombies() {
+                //ArrayList<Actor> humanKillList = new ArrayList<>();
                 for (Actor z : zombies){
-                    Actor closest = player;
-                    int distance = player.getDistanceSqrt(z);
+                    Actor closest = KdTree.nearestNeighbour(root, z, true).actor;
+                    //Actor closest = player;
+                    /*int distance = player.getDistanceSqrt(z);s
                     for (Actor h : humans){
                         int hDis = z.getDistanceSqrt(h);
                         if (hDis < distance){
                             distance = hDis;
                             closest  = h;
                         }
-                    }
-                    if (closest.id != player.id && distance <= 160000) humanKillList.add(closest);
+                    }*/
+                    //if (closest.id != player.id && distance <= 160000) humanKillList.add(closest);
                     z.moveToNext(closest.x, closest.y, 400);
                 }
-                return humanKillList;
+                //return humanKillList;
             }
 
             @Override
@@ -315,7 +353,7 @@ class Player {
                 return result;
             }
         }
-       
+
         public static class Individual {
             List<Gene> genes = new ArrayList<>();
             List<State> states = new ArrayList<>();
@@ -333,7 +371,7 @@ class Player {
             }
 
             public void removeFirstStep() {
-                if (!genes.isEmpty()) {
+                if (!genes.isEmpty()){
                     genes.remove(0);
                 }
             }
@@ -345,27 +383,21 @@ class Player {
             double getFitness() {
                 return fitness;
             }
-            
+
             public void simulate(State state, Settings settings) {
-                state = new State(state);
+                state      = new State(state);
                 zombiesMax = state.zombies.size();
-                humansMax = state.humans.size();
+                humansMax  = state.humans.size();
                 int i = 0;
-                ArrayList<Gene> newGenes = new ArrayList<>();
-                states = new ArrayList<>();
-                while (newGenes.size() <= settings.INDIVIDUAL_LENGTH && (!state.humans.isEmpty()) &&
+                while (i <= settings.INDIVIDUAL_LENGTH && (!state.humans.isEmpty()) &&
                        (!state.zombies.isEmpty())) {
-                    Gene g;
-                    if (i < this.genes.size()) g = this.genes.get(i);
-                    else g = new Gene();
-                    state.simulate(g);
-                    states.add(new State(state));
-                    newGenes.add(g);
+                    if (i >= this.genes.size()) genes.add(new Gene());
+                    ;
+                    state.simulate(this.genes.get(i));
                     i++;
                 }
                 this.state = state;
-                genes   = newGenes;
-                fitness = calculateFitness(settings);
+                fitness    = calculateFitness(settings);
             }
 
             private double calculateFitness(Settings settings) {
@@ -374,18 +406,18 @@ class Player {
                 for (int i = zombiesMax - 1; i >= 0; i--){
                     if (combo < 39) fibSum += FIBONACCI[combo++];
                 }
-                long maxScore =  10 * (humansMax * humansMax) * fibSum;
-                
-                if(state.score > 100000000L) System.out.println("LONG ERROR!!!! Overflow score");
-                
-                double score = (((double)state.score) / maxScore) * 10.0;
-                score+=1;
-                score *=score;
-                score *=score;
-                
-                double humansAlive = state.humans.size()>0?10.0:0.0;
-                humansAlive *=humansAlive;
-                humansAlive *=humansAlive;
+                long maxScore = 10 * (humansMax * humansMax) * fibSum;
+
+                if (state.score > 100000000L) System.out.println("LONG ERROR!!!! Overflow score");
+
+                double score = (((double) state.score) / maxScore) * 10.0;
+                score += 1;
+                score *= score;
+                score *= score;
+
+                double humansAlive = state.humans.size() > 0 ? 10.0 : 0.0;
+                humansAlive *= humansAlive;
+                humansAlive *= humansAlive;
                 
 /*                double humansAlive = (((double)state.humans.size()) / humansMax) * 10.0;
                 humansAlive+=1;
@@ -396,17 +428,19 @@ class Player {
                 zombiesAlive+=1;
                 zombiesAlive *=zombiesAlive;
                 zombiesAlive *=zombiesAlive;*/
-                
 
-                double pathLength = 10.0 - ((((double)genes.size()) / settings.INDIVIDUAL_LENGTH) * 10.0);
+
+                double pathLength =
+                        10.0 - ((((double) genes.size()) / settings.INDIVIDUAL_LENGTH) * 10.0);
 
 
                 //Get fitness
                 double fitnessScore = 0;
-                if(state.humans.size()>0) fitnessScore += score * settings.GENE_WEIGHTS[0];
+                if (state.humans.size() > 0) fitnessScore += score * settings.GENE_WEIGHTS[0];
                 fitnessScore += humansAlive * settings.GENE_WEIGHTS[1];
                 //if(state.humans.size()>0) fitnessScore += zombiesAlive * settings.GENE_WEIGHTS[2];
-                if(state.humans.size()>0 && state.zombies.isEmpty())fitnessScore += pathLength * settings.GENE_WEIGHTS[3];
+                if (state.humans.size() > 0 && state.zombies.isEmpty()) fitnessScore +=
+                        pathLength * settings.GENE_WEIGHTS[3];
                 return fitnessScore;
             }
 
@@ -420,7 +454,9 @@ class Player {
                 if (Double.compare(that.fitness, fitness) != 0) return false;
                 if (zombiesMax != that.zombiesMax) return false;
                 if (humansMax != that.humansMax) return false;
-                if (!genes.equals(that.genes)) return false;
+                if (genes != null ? !genes.equals(that.genes) : that.genes != null) return false;
+                if (states != null ? !states.equals(that.states) : that.states != null)
+                    return false;
                 return state != null ? state.equals(that.state) : that.state == null;
             }
 
@@ -428,7 +464,8 @@ class Player {
             public int hashCode() {
                 int result;
                 long temp;
-                result = genes.hashCode();
+                result = genes != null ? genes.hashCode() : 0;
+                result = 31 * result + (states != null ? states.hashCode() : 0);
                 result = 31 * result + (state != null ? state.hashCode() : 0);
                 temp   = Double.doubleToLongBits(fitness);
                 result = 31 * result + (int) (temp ^ (temp >>> 32));
@@ -437,7 +474,7 @@ class Player {
                 return result;
             }
         }
-        
+
         public static class Gene {
             private final int[] vars;
 
@@ -478,7 +515,7 @@ class Player {
                 return "Gene{" + "vars=" + Arrays.toString(vars) + '}';
             }
         }
-  
+
         public static class Solver {
             public Settings settings;
 
@@ -489,7 +526,8 @@ class Player {
             public List<Individual> evolve(List<Individual> pop, State state, long startTime,
                                            int[] crossovers) {
                 if (settings.REMOVE_STEP) removeFirstStep(pop);
-                if(pop.isEmpty()) pop.addAll(getRandomIndividuals(settings.DESIRED_POPULATION_SIZE));
+                if (pop.isEmpty()) pop.addAll(
+                        getRandomIndividuals(settings.DESIRED_POPULATION_SIZE));
                 int counter = 0;
                 while (System.currentTimeMillis() - startTime < settings.EVALUATE_TIME) {
                     int eliteSize = (int) (pop.size() * settings.ELITISM_PERCENTAGE);
@@ -506,14 +544,14 @@ class Player {
                     counter++;
                 }
                 crossovers[0] += counter;
-                
+
                 return pop;
             }
 
             public void removeFirstStep(List<Individual> pop) {
                 for (int i = pop.size() - 1; i >= 0; i--){
                     Individual ind = pop.get(i);
-                    if (ind.getGenes().size()<2) pop.remove(i);
+                    if (ind.getGenes().size() < 2) pop.remove(i);
                     else ind.removeFirstStep();
                 }
             }
@@ -598,6 +636,58 @@ class Player {
                 this.MUTATION_CHANCE               = s.MUTATION_CHANCE;
                 this.GENE_WEIGHTS                  = s.GENE_WEIGHTS;
                 this.EVALUATE_TIME                 = s.EVALUATE_TIME;
+            }
+        }
+    }
+
+    static class KdTree {
+        private static Node insertNode(Node root, Actor actor, boolean isAlive, boolean isX) {
+            if (root == null) return new Node(actor, isAlive);
+            if (isX ? (actor.x < root.actor.x) : (actor.y < root.actor.y)) 
+                root.left = insertNode(root.left, actor, isAlive, !isX);
+            else root.right = insertNode(root.right, actor, isAlive, !isX);
+            return root;
+        }
+
+        public static Node insert(Node root, Actor actor, boolean isAlive) {
+            return insertNode(root, actor, isAlive, true);
+        }
+
+        public static Node nearestNeighbour(Node root, Actor actor, boolean isAlive) {
+            return searchNearestNeighbour(root, actor, Integer.MAX_VALUE, root, isAlive);
+        }
+
+        public static Node searchNearestNeighbour(Node root, Actor actor, int minDist,
+                                                  Node bestNode, boolean isAlive) {
+            if (root == null) return bestNode;
+            int distToRoot = actor.getDistanceSqrt(root.actor);
+            if (distToRoot < minDist && root.isAlive == isAlive){
+                minDist  = distToRoot;
+                bestNode = root;
+            }
+            if (root.left == null)
+                return searchNearestNeighbour(root.right, actor, minDist, bestNode, isAlive);
+            if (root.right == null)
+                return searchNearestNeighbour(root.left, actor, minDist, bestNode, isAlive);
+
+            if (actor.getDistanceSqrt(root.left.actor) <
+                actor.getDistanceSqrt(root.right.actor) && root.isAlive == isAlive) bestNode = searchNearestNeighbour(
+                    root.left, actor, minDist, bestNode, isAlive);
+            else bestNode = searchNearestNeighbour(root.right, actor, minDist, bestNode, isAlive);
+            return bestNode;
+        }
+
+        static class Node {
+            public Player.Actor actor;
+            public Node left;
+            public Node right;
+            boolean isAlive;
+
+            public Node(Actor actor, boolean isAlive) {
+                this.isAlive = isAlive;
+                this.actor   = actor;
+                left         = null;
+                right        = null;
             }
         }
     }
