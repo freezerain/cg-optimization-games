@@ -6,18 +6,20 @@ import java.util.List;
 import java.util.Map;
 
 public class MarsLanderStat {
-    public TestType type;
+    public TestType type = TestType.DESIRED_POPULATION_SIZE;
     public boolean RANDOM_CROSSOVER_ON_DUPLICATE = true;
     public boolean REMOVE_DUPLICATES = false;
     public int TOURNAMENT_SIZE = 4;
     public double ELITISM_PERCENTAGE = 0.3;
-    public int DESIRED_POPULATION_SIZE = 250;
+    public int DESIRED_POPULATION_SIZE = 50;
+    public int INDIVIDUAL_LENGTH = 20;
     public double CROSSOVER_PERCENTAGE = 0.7;
     public double MUTATION_CHANCE = 0.02;
-    public double[] GENE_WEIGHTS = new double[]{0.15, 0.3, 0.4, 0.15, 1};
+    public double[] GENE_WEIGHTS = new double[]{100.0, 5.0, 1.0, 1};
+    
 
     public Number[] numbers = new Number[6];
-    String[] names = {"Time", "First time", "Ten time", "Best fitness", "Last fitness", "Failed"};
+    public String[] names = {"Time", "First time", "Ten time", "Best fitness", "Last fitness", "Failed"};
 
     public MarsLanderStat() {
     }
@@ -31,8 +33,12 @@ public class MarsLanderStat {
         this.DESIRED_POPULATION_SIZE       = ms.DESIRED_POPULATION_SIZE;
         this.CROSSOVER_PERCENTAGE          = ms.CROSSOVER_PERCENTAGE;
         this.MUTATION_CHANCE               = ms.MUTATION_CHANCE;
-        this.GENE_WEIGHTS                  = ms.GENE_WEIGHTS;
-        this.numbers = ms.numbers;
+        this.GENE_WEIGHTS = new double[ms.GENE_WEIGHTS.length];
+        for (int i = 0; i < ms.GENE_WEIGHTS.length; i++)
+             GENE_WEIGHTS[i] = ms.GENE_WEIGHTS[i];
+        this.numbers = new Number[ms.numbers.length];
+        for (int i = 0; i < ms.numbers.length; i++)
+            numbers[i] = ms.numbers[i];
         this.names = ms.names;
     }
 
@@ -81,7 +87,7 @@ public class MarsLanderStat {
         if(startingList.isEmpty()) startingList.add(new MarsLanderStat());
         ArrayList<MarsLanderStat> result = new ArrayList<>();
         for (MarsLanderStat initStat : startingList){
-            for (int i = 0; i <= 10 ; i++){
+            for (int i = 0; i <= 35 ; i+=5){
                 MarsLanderStat newStat = new MarsLanderStat(initStat);
                 newStat.type = TestType.ELITISM_PERCENTAGE;
                 newStat.ELITISM_PERCENTAGE = i/100.0;
@@ -94,7 +100,7 @@ public class MarsLanderStat {
         if(startingList.isEmpty()) startingList.add(new MarsLanderStat());
         ArrayList<MarsLanderStat> result = new ArrayList<>();
         for (MarsLanderStat initStat : startingList){
-            for (int i = 25; i <= 500 ; i+=25){
+            for (int i = 25; i <= 250 ; i+=25){
                 MarsLanderStat newStat = new MarsLanderStat(initStat);
                 newStat.type = TestType.DESIRED_POPULATION_SIZE;
                 newStat.DESIRED_POPULATION_SIZE = i;
@@ -103,11 +109,26 @@ public class MarsLanderStat {
         }
         return result;
     }
+    
+    public static List<MarsLanderStat> getIndLengthTest(List<MarsLanderStat> startingList){
+        if(startingList.isEmpty()) startingList.add(new MarsLanderStat());
+        ArrayList<MarsLanderStat> result = new ArrayList<>();
+        for (MarsLanderStat initStat : startingList){
+            for (int i = 10; i <= 200 ; i+=10){
+                MarsLanderStat newStat = new MarsLanderStat(initStat);
+                newStat.type = TestType.INDIVIDIAL_LENGTH;
+                newStat.INDIVIDUAL_LENGTH = i;
+                result.add(newStat);
+            }
+        }
+        return result;
+    }
+    
     public static List<MarsLanderStat> getCrossoverChanceTests(List<MarsLanderStat> startingList){
         if(startingList.isEmpty()) startingList.add(new MarsLanderStat());
         ArrayList<MarsLanderStat> result = new ArrayList<>();
         for (MarsLanderStat initStat : startingList){
-            for (int i = 50; i <= 100-initStat.ELITISM_PERCENTAGE*100 ; i+=10){
+            for (int i = 50; i <= 100-initStat.ELITISM_PERCENTAGE*100 ; i+=5){
                 MarsLanderStat newStat = new MarsLanderStat(initStat);
                 newStat.type = TestType.CROSSOVER_PERCENTAGE;
                 newStat.CROSSOVER_PERCENTAGE = i/100.0;
@@ -145,6 +166,8 @@ public class MarsLanderStat {
         return result;
     }
     
+    
+    
     public void putBooleanMap(Map<String, Map<String, Map<Boolean, Number>>> booleanTestMap){
         Map<String, Map<Boolean, Number>> varMap = booleanTestMap.getOrDefault(
                 type.name(), new HashMap<>());
@@ -174,13 +197,13 @@ public class MarsLanderStat {
                 type.name(), new HashMap<>());
         double[] arr = (double[]) type.getTestVar(this);
         for (int i = 0; i < names.length; i++){
-            Map<double[], Number> testMap = varMap.getOrDefault(names[i],
-                    new HashMap<>());
+            Map<double[], Number> testMap = varMap.getOrDefault(names[i], new HashMap<>());
                 testMap.put(arr, numbers[i]);
             varMap.put(names[i], testMap);
         }
         numberTestMap.put(type.name(), varMap);
     }
+    
     public enum TestType{
         RANDOM_CROSSOVER{
             @Override
@@ -229,7 +252,17 @@ public class MarsLanderStat {
             }
 
 
-        }, CROSSOVER_PERCENTAGE {
+        }, INDIVIDIAL_LENGTH{
+            @Override
+            public List<MarsLanderStat> getTest(List<MarsLanderStat> startingList) {
+                return getIndLengthTest(startingList);
+            }
+
+            @Override
+            public Object getTestVar(MarsLanderStat ms) {
+                return ms.INDIVIDUAL_LENGTH;
+            }
+        },CROSSOVER_PERCENTAGE {
             @Override
             public List<MarsLanderStat> getTest(List<MarsLanderStat> startingList) {
                 return getCrossoverChanceTests(startingList);
@@ -239,8 +272,6 @@ public class MarsLanderStat {
             public Object getTestVar(MarsLanderStat ms) {
                 return ms.CROSSOVER_PERCENTAGE;
             }
-
-
         }, MUTATION_CHANCE {
             @Override
             public List<MarsLanderStat> getTest(List<MarsLanderStat> startingList) {

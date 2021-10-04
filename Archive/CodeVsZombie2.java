@@ -1,6 +1,8 @@
+package Archive;
+
 import java.util.*;
 
-class Player {
+public class CodeVsZombie2 {
     static final int[] FIBONACCI = {1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233, 377, 610, 987,
             1597, 2584, 4181, 6765, 10946, 17711, 28657, 46368, 75025, 121393, 196418, 317811,
             514229, 832040, 1346269, 2178309, 3524578, 5702887, 9227465, 14930352, 24157817,
@@ -83,10 +85,10 @@ class Player {
         }
     }
 
-    static class Actor {
-        int id;
-        int x;
-        int y;
+    public static class Actor {
+        public int id;
+        public int x;
+        public int y;
 
         public Actor(int id, int x, int y) {
             this.id = id;
@@ -139,7 +141,7 @@ class Player {
         }
     }
 
-    static class Genetic {
+    public static class Genetic {
         private static final Random R = new Random();
 
         enum CrossoverType {
@@ -234,10 +236,10 @@ class Player {
         }
 
         public static class State {
-            Actor player;
-            List<Actor> humans;
-            List<Actor> zombies;
-            long score = 0;
+            public Actor player;
+            public List<Actor> humans;
+            public List<Actor> zombies;
+            public long score = 0;
             KdTree.Node root;
 
             public State(Actor player, List<Actor> humans, List<Actor> zombies) {
@@ -271,7 +273,7 @@ class Player {
                 root = null;
                 root = KdTree.insert(root, player, true);
                 for (int i = humans.size()/2, j = 0; j < humans.size(); i++, j++)
-                    root = KdTree.insert(root, humans.get(i%humans.size()), true);
+                    root = KdTree.insert(root, humans.get(i % humans.size()), true);
             }
 
             private void movePlayer(int radius, int angle) {
@@ -351,10 +353,10 @@ class Player {
         }
 
         public static class Individual {
-            List<Gene> genes = new ArrayList<>();
-            State state;
-            State startState;
-            double fitness;
+            public List<Gene> genes = new ArrayList<>();
+            public State state;
+            public State startState;
+            public double fitness;
             int zombiesMax;
             int humansMax;
 
@@ -455,8 +457,8 @@ class Player {
         }
 
         public static class Gene {
-            int distance;
-            int angle;
+            public int distance;
+            public int angle;
 
             public Gene() {
                 double distanceWeight = Genetic.R.nextDouble();
@@ -579,8 +581,8 @@ class Player {
         }
 
         public static class Settings {
-            public Genetic.SelectType selectType = SelectType.TOURNAMENT;
-            public Genetic.CrossoverType crossoverType = CrossoverType.POINT;
+            public SelectType selectType = SelectType.TOURNAMENT;
+            public CrossoverType crossoverType = CrossoverType.POINT;
             public boolean RANDOM_CROSSOVER_ON_DUPLICATE = true;
             public boolean REMOVE_DUPLICATES = true;
             public boolean REMOVE_STEP = false;
@@ -614,7 +616,7 @@ class Player {
         }
     }
 
-     static class KdTree {
+    static class KdTree {
         private static Node insertNode(Node root, Actor actor, boolean isAlive, boolean isX) {
             if (root == null) return new Node(actor, isAlive);
             if (isX ? (actor.x < root.actor.x) : (actor.y < root.actor.y)) 
@@ -665,7 +667,7 @@ class Player {
         }
 
         static class Node {
-            public Player.Actor actor;
+            public Actor actor;
             public Node left;
             public Node right;
             boolean isAlive;

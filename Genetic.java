@@ -537,15 +537,15 @@ public class Genetic {
     public static class Settings {
         public Genetic.SelectType selectType = SelectType.TOURNAMENT;
         public Genetic.CrossoverType crossoverType = CrossoverType.POINT;
-        public boolean RANDOM_CROSSOVER_ON_DUPLICATE = true;
-        public boolean REMOVE_DUPLICATES = false;
-        public boolean REMOVE_STEP = false;
+        public boolean RANDOM_CROSSOVER_ON_DUPLICATE = false;
+        public boolean REMOVE_DUPLICATES = true;
+        public boolean REMOVE_STEP = true;
         public int TOURNAMENT_SIZE = 4;
         public double ELITISM_PERCENTAGE = 0.2;
         public int INDIVIDUAL_LENGTH = 200;
-        public int DESIRED_POPULATION_SIZE = 50;
-        public double CROSSOVER_PERCENTAGE = 0.8;
-        public double MUTATION_CHANCE = 0.02;
+        public int DESIRED_POPULATION_SIZE = 200;
+        public double CROSSOVER_PERCENTAGE = 0.6;
+        public double MUTATION_CHANCE = 0.01;
         public double[] GENE_WEIGHTS = new double[]{0.1, 0.3, 0.4, 0.1, 1};
         public int startingFuel = 3000;
         public long EVALUATE_TIME = 90;

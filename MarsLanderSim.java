@@ -16,7 +16,7 @@ public class MarsLanderSim {
             MarsLanderSim.class.getResource("simulacrum" + "/marsLanderPuzzle/test1.txt")
                     .getPath());
 
-    private static final int TEST_NUMBER = 1;
+    private static final int TEST_NUMBER = 4;
     private static boolean IS_SIMULATE = false;
     private static boolean IS_DRAW_VISUAL = true;
     private static int DELAY = 500;
@@ -50,14 +50,14 @@ public class MarsLanderSim {
 
     private static void evaluateStat(double[] landscape, double[] landingSite, int[] initialData) throws InterruptedException {
         long start = System.currentTimeMillis();
-        int simSize = 3;
+        int simSize = 10;
         Genetic.State state = new Genetic.State(initialData[0], initialData[1], initialData[2],
                 initialData[3], initialData[4], initialData[5], initialData[6]);
         List<List<MarsLanderStat>> testList = new ArrayList<>();
-        testList.add(MarsLanderStat.TestType.REMOVE_DUPLICATES.getTest(new ArrayList<>()));
- /*       for (MarsLanderStat.TestType type : MarsLanderStat.TestType.values())
-            testList.add(type.getTest(new ArrayList<>()));
-        */
+        //testList.add(MarsLanderStat.TestType.REMOVE_DUPLICATES.getTest(new ArrayList<>()));
+        for (MarsLanderStat.TestType type : MarsLanderStat.TestType.values())
+            if(type!=MarsLanderStat.TestType.WEIGHTS)testList.add(type.getTest(new ArrayList<>()));
+        
         for (int k = 0; k < testList.size(); k++){
             System.out.print("Test: " + k + "/" + (testList.size() - 1) + " -> ");
             List<MarsLanderStat> tests = testList.get(k);

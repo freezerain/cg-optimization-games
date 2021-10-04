@@ -87,7 +87,7 @@ public class CodeVsZombiesApp extends Application {
             Polyline pl = new Polyline(doublePath);
             Color color;
             if (scores[i] < 0) color = Color.DARKRED;
-            else color = Color.color(0.0, (scores[i] - minScore) / (maxScore - minScore), 0.0);
+            else color = Color.color(1.0-(scores[i] - minScore) / (maxScore - minScore), (scores[i] - minScore) / (maxScore - minScore), 0.0 );
             pl.setStroke(color);
             list.add(pl);
         }
@@ -101,7 +101,7 @@ public class CodeVsZombiesApp extends Application {
         pane.setBackground(new Background(
                 new BackgroundFill(Color.color(0.0, 0.0, 0.0), new CornerRadii(0), new Insets(0))));
         stage.setWidth(1600);
-        stage.setHeight(900);
+        stage.setHeight(1000);
         stage.setScene(new Scene(pane));
         stage.show();
         latch.countDown();
