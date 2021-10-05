@@ -361,7 +361,7 @@ public class CodeVsZombie2 {
             int humansMax;
 
             public Individual(List<Gene> genes) {
-                this.genes = genes;
+                this.genes.addAll(genes);
             }
 
             public Individual() {

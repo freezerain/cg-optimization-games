@@ -7,15 +7,15 @@ import java.util.Map;
 
 public class MarsLanderStat {
     public TestType type = TestType.DESIRED_POPULATION_SIZE;
-    public boolean RANDOM_CROSSOVER_ON_DUPLICATE = true;
+    public boolean RANDOM_CROSSOVER_ON_DUPLICATE = false;
     public boolean REMOVE_DUPLICATES = false;
     public int TOURNAMENT_SIZE = 4;
-    public double ELITISM_PERCENTAGE = 0.3;
-    public int DESIRED_POPULATION_SIZE = 50;
-    public int INDIVIDUAL_LENGTH = 20;
+    public double ELITISM_PERCENTAGE = 0.1;
+    public int DESIRED_POPULATION_SIZE = 200;
+    public int INDIVIDUAL_LENGTH = 150;
     public double CROSSOVER_PERCENTAGE = 0.7;
-    public double MUTATION_CHANCE = 0.02;
-    public double[] GENE_WEIGHTS = new double[]{100.0, 5.0, 1.0, 1};
+    public double MUTATION_CHANCE = 0.01;
+    public double[] GENE_WEIGHTS = new double[]{1.0, 2.0, 3.0, 0.5,0.1};
     
 
     public Number[] numbers = new Number[6];
@@ -114,7 +114,7 @@ public class MarsLanderStat {
         if(startingList.isEmpty()) startingList.add(new MarsLanderStat());
         ArrayList<MarsLanderStat> result = new ArrayList<>();
         for (MarsLanderStat initStat : startingList){
-            for (int i = 10; i <= 200 ; i+=10){
+            for (int i = 25; i <= 200 ; i+=25){
                 MarsLanderStat newStat = new MarsLanderStat(initStat);
                 newStat.type = TestType.INDIVIDIAL_LENGTH;
                 newStat.INDIVIDUAL_LENGTH = i;

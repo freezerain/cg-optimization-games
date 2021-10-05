@@ -410,7 +410,7 @@ public class Genetic {
     }
 
     public static class Gene {
-        private final int[] vars;
+        public int[] vars;
 
         public Gene() {
             vars = new int[3];
@@ -574,7 +574,6 @@ public class Genetic {
             this.landingSite                   = s.landingSite;
         }
     }
-    
 }
 
 
