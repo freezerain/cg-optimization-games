@@ -108,6 +108,7 @@ public class MarsLanderApp extends Application {
     }
 
     public void updateObservable(int gen, List<LanderPath> paths) {
+        if(paths.isEmpty()) return;
         Lander lastState = paths.get(0).firstState;
         this.y.set(((int) (Math.round(lastState.x / 4.0))) - IMAGE_WIDTH / 2);
         this.x.set(((int) (Math.round(750 - lastState.y / 4.0))) - IMAGE_HEIGHT);
@@ -144,7 +145,7 @@ public class MarsLanderApp extends Application {
             else if (!lp.isLanded) polyline.setStroke(Color.DARKRED);
             else if (lp.score < 0) polyline.setStroke(Color.DIMGREY);
             else polyline.setStroke(
-                        Color.color(0.0, (lp.score - minScore) / (maxScore - minScore), 0.0));
+                        Color.color(0.0,  (lp.score - minScore) / (maxScore - minScore), 0.0));
 
 
             Circle c = new Circle();

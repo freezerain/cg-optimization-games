@@ -1,14 +1,14 @@
+package simulacrum.marsLanderPuzzle;
+import Archive.MarsLander.*;
+
 import marsLander.Lander;
 import marsLander.LanderPath;
-import simulacrum.codeVsZombie.CodeVsZombieSim;
-import simulacrum.marsLanderPuzzle.MarsLanderStat;
 import src.DrawerController;
 
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.util.*;
 import java.util.concurrent.*;
-import java.util.stream.Collectors;
 
 import static java.lang.Thread.sleep;
 
@@ -16,7 +16,7 @@ public class MarsLanderSim {
     private final static File TEST_FILE = new File(
             MarsLanderSim.class.getResource("simulacrum" + "/marsLanderPuzzle/test1.txt")
                     .getPath());
-    private static final int TEST_NUMBER = 0;
+    private static final int TEST_NUMBER = 4;
     private static boolean IS_SIMULATE = true;
     private static boolean IS_DRAW_VISUAL = true;
     private static int DELAY = 100;
@@ -79,7 +79,7 @@ public class MarsLanderSim {
     private static void evaluateCustomTest(double[] landscape, double[] landingSite, int[] initialData,
                                            double[] weights) throws InterruptedException {
         long start = System.currentTimeMillis();
-        Player.Genetic.State state = new Player.Genetic.State(initialData[0], initialData[1], initialData[2],
+        Archive.MarsLander.Genetic.State state = new Archive.MarsLander.Genetic.State(initialData[0], initialData[1], initialData[2],
                 initialData[3], initialData[4], initialData[5], initialData[6], landscape, landingSite);
         int simSize = 10;
         double[] testAverage = new double[6];
@@ -115,7 +115,7 @@ public class MarsLanderSim {
     private static void evaluateStat(double[] landscape, double[] landingSite, int[] initialData) throws InterruptedException {
         long start = System.currentTimeMillis();
         int simSize = 10;
-        Player.Genetic.State state = new Player.Genetic.State(initialData[0], initialData[1], initialData[2],
+        Archive.MarsLander.Genetic.State state = new Archive.MarsLander.Genetic.State(initialData[0], initialData[1], initialData[2],
                 initialData[3], initialData[4], initialData[5], initialData[6], landscape, landingSite);
         List<List<MarsLanderStat>> testList = new ArrayList<>();
         //testList.add(MarsLanderStat.TestType.REMOVE_DUPLICATES.getTest(new ArrayList<>()));
@@ -195,59 +195,78 @@ public class MarsLanderSim {
     }
 
     private static void evaluate(double[] landscape, double[] landingSite, int[] initialData) throws InterruptedException {
-        Player.Genetic.State state = new Player.Genetic.State(initialData[0], initialData[1], initialData[2],
+        Archive.MarsLander.Genetic.State state = new Archive.MarsLander.Genetic.State(initialData[0], initialData[1], initialData[2],
                 initialData[3], initialData[4], initialData[5], initialData[6], landscape, landingSite);
         DrawerController dc = new DrawerController();
         if (IS_DRAW_VISUAL) dc.startApp(landscape);
         int counter = 0;
-        Player.Genetic.Settings settings = new Player.Genetic.Settings();
-        Player.Genetic.Solver solver = new Player.Genetic.Solver(settings);
+        Archive.MarsLander.Genetic.Settings settings = new Archive.MarsLander.Genetic.Settings();
+        Archive.MarsLander.Genetic.Solver solver = new Archive.MarsLander.Genetic.Solver(settings);
         int[] crossovers = new int[1];
-        List<Player.Genetic.Individual> population = solver.getRandomIndividuals(
-                settings.DESIRED_POPULATION_SIZE);
-        sleep(2000);
+        sleep(4000);
+        Archive.MarsLander.Genetic.Individual solution = null;
         while (!state.isLanded) {
             crossovers[0] = 0;
-            population = solver.evolve(population, state, System.currentTimeMillis(), crossovers);
+            List<Archive.MarsLander.Genetic.Individual> population  = solver.evolve(solution, state, System.currentTimeMillis(), crossovers);
             System.out.println("crossovers: " + crossovers[0]);
-            Player.Genetic.Individual bestInd = population.get(0);
-            System.out.println("best fitn:"+bestInd.fitness);
+            Archive.MarsLander.Genetic.Individual bestInd = population.get(0);
+            System.out.println("best fit:"+bestInd.fitness);
             System.out.println(bestInd.finalState);
+            Archive.MarsLander.Genetic.State startState = new Archive.MarsLander.Genetic.State(state);
             if (IS_SIMULATE) {
-                if(bestInd.finalState.isSafeLanded) state = bestInd.nextState;
+                int angle = -state.angle;
+                int power = 4;
+                if(bestInd.finalState.isSafeLanded || solution!=null) {
+                    if(solution==null || bestInd.fitness>solution.fitness)
+                        solution = bestInd;
+                    angle = solution.genes.get(0).angle;
+                    power = solution.genes.get(0).power;
+                }
                 else{
                     System.out.println("---- default move!!!! ----");
-                    int angle = 0;
-                    if(state.x>landingSite[2]) angle = (int) (state.angle > 21.9? Math.max(-15, 21.9 - state.angle ):
+                    if(state.x>landingSite[2]|| state.hS> 50.0) 
+                        if(state.hS>-50.0)angle = (int) (state.angle > 21.9? Math.max(-15, 21.9 - state.angle ):
                             Math.max(15, 21.9 - state.angle));
-                    else if(state.x<landingSite[0]){
+                    else if(state.x<landingSite[0] || state.hS<-50.0)
+                            if(state.hS<50.0)
                         angle = (int) (state.angle > -21.9? Math.max(-15, -21.9 - state.angle):
                                 Math.max(15, -21.9 - state.angle));
-                    }
-                    else if(state.hS>20.0){
+                    else if(state.hS>20.0)
                         angle = (int) (state.angle > 21.9? Math.max(-15, 21.9 - state.angle ):
                                 Math.max(15, 21.9 - state.angle));
-                    }
-                    else if(state.hS<-20.0){
+                    
+                    else if(state.hS<-20.0)
                         angle = (int) (state.angle > -21.9? Math.max(-15, -21.9 - state.angle):
                                 Math.max(15, -21.9 - state.angle));
-                    }
-                    Player.Genetic.Gene newGene = new Player.Genetic.Gene(angle, 4);
-                    state.simulate(settings, newGene);
+                    
                 }
+                Archive.MarsLander.Genetic.Gene newGene = new Archive.MarsLander.Genetic.Gene(angle, power);
+                state.simulate(settings, newGene);
             }
             
             List<LanderPath> parsed = new ArrayList<>();
-            for (Player.Genetic.Individual ind : population){
+            for (Archive.MarsLander.Genetic.Individual ind : population){
                 ArrayList<Lander> paths = new ArrayList<>();
-                Player.Genetic.State history = new Player.Genetic.State(state);
-                for (Player.Genetic.Gene gene : ind.genes){
+                Archive.MarsLander.Genetic.State history = new Archive.MarsLander.Genetic.State(startState);
+                for (Archive.MarsLander.Genetic.Gene gene : ind.genes){
                     history.simulate(settings, gene);
                     paths.add(new Lander(history.x, history.y, history.hS, history.vS, history.fuel, history.angle, history.power,
                             history.isLanded, history.isSafeLanded));
                 }
                 parsed.add(new LanderPath(paths, ind.fitness));
             }
+            if (solution!=null){
+                ArrayList<Lander> paths = new ArrayList<>();
+                Archive.MarsLander.Genetic.State history = new Archive.MarsLander.Genetic.State(startState);
+                for (Archive.MarsLander.Genetic.Gene gene : solution.genes){
+                    history.simulate(settings, gene);
+                    paths.add(new Lander(history.x, history.y, history.hS, history.vS, history.fuel, history.angle, history.power,
+                            history.isLanded, history.isSafeLanded));
+                }
+                parsed.add(new LanderPath(paths, solution.fitness));
+            }
+            if(solution!=null)
+                solution.genes.remove(0);
             if (IS_DRAW_VISUAL) dc.updateCoord(counter++, parsed);
             sleep(DELAY);
         }
@@ -255,16 +274,16 @@ public class MarsLanderSim {
 
     static class TestCallable implements Callable<double[]> {
         final MarsLanderStat stat;
-        private final Player.Genetic.State prototype;
+        private final Archive.MarsLander.Genetic.State prototype;
 
-        public TestCallable(MarsLanderStat stat, Player.Genetic.State prototype) {
+        public TestCallable(MarsLanderStat stat, Archive.MarsLander.Genetic.State prototype) {
             this.stat        = stat;
             this.prototype   = prototype;
         }
 
         @Override
         public double[] call() {
-            Player.Genetic.Settings s = new Player.Genetic.Settings();
+            Archive.MarsLander.Genetic.Settings s = new Archive.MarsLander.Genetic.Settings();
             s.RANDOM_CROSSOVER_ON_DUPLICATE = stat.RANDOM_CROSSOVER_ON_DUPLICATE;
             s.REMOVE_DUPLICATES             = stat.REMOVE_DUPLICATES;
             s.TOURNAMENT_SIZE               = stat.TOURNAMENT_SIZE;
@@ -274,9 +293,9 @@ public class MarsLanderSim {
             s.CROSSOVER_PERCENTAGE          = stat.CROSSOVER_PERCENTAGE;
             s.MUTATION_CHANCE               = stat.MUTATION_CHANCE;
             s.GENE_WEIGHTS                  = stat.GENE_WEIGHTS;
-            Player.Genetic.Solver solver = new Player.Genetic.Solver(s);
+            Archive.MarsLander.Genetic.Solver solver = new Archive.MarsLander.Genetic.Solver(s);
 
-            Player.Genetic.State gs = new Player.Genetic.State(prototype);
+            Archive.MarsLander.Genetic.State gs = new Archive.MarsLander.Genetic.State(prototype);
             int counter = 0;
             int firstFoundCounter = -1;
             int tenSolutionCounter = -1;
@@ -284,12 +303,13 @@ public class MarsLanderSim {
             double lastFitness = -1;
 
             int[] crossovers = new int[1];
-            List<Player.Genetic.Individual> population = solver.getRandomIndividuals(
-                    s.DESIRED_POPULATION_SIZE);
+            Archive.MarsLander.Genetic.Individual solution = null;
             while (counter < 1000) {
-                population = solver.evolve(population, gs,
+                if(solution!=null)
+                    solution.genes.remove(0);
+                List<Archive.MarsLander.Genetic.Individual> population = solver.evolve(solution, gs,
                         System.currentTimeMillis(), crossovers);
-                Player.Genetic.State bestState = population.get(0).finalState;
+                Archive.MarsLander.Genetic.State bestState = population.get(0).finalState;
                 long solutions = population.stream()
                         .filter(ind -> ind.finalState.isSafeLanded)
                         .count();
